@@ -1,0 +1,12 @@
+{application, msbus_rpc_proxy,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { msbus_rpc_proxy_app, []}},
+  {env, []}
+ ]}.
