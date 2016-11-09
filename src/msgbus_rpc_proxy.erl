@@ -75,7 +75,7 @@ start_link() ->
   {stop, Reason :: term()} | ignore).
 init([]) ->
   lager:debug("init"),
-  {ok, _State} = enm:start(),
+  enm:start_link(),
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
