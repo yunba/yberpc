@@ -161,7 +161,6 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_Reason, _State) ->
-  enm:stop(),
   lager:debug("terminate"),
   ok.
 
