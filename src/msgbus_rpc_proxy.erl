@@ -120,10 +120,6 @@ handle_call(_Request, _From, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast({{nnreq, ReqSock, RepData}}, State) ->
-  lager:debug("recv a message in cast"),
-  {reply, {ok}, State};
-
 handle_cast(_Request, State) ->
   {noreply, State}.
 
@@ -141,9 +137,9 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({{nnreq, ReqSock, RepData}}, State) ->
-  lager:debug("recv a message in info"),
-  {reply, {ok}, State};
+handle_info({nnrep, Rep, ReqData}, State) ->
+  lager:debug("get a nnrep"),
+  {reply, ok, State};
 handle_info(_Info, State) ->
   {noreply, State}.
 
