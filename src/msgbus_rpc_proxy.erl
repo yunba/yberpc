@@ -104,7 +104,7 @@ handle_call({create_server, Url}, _From, State) ->
 
 handle_call({sync_request, Sock, ReqData}, _From, State) ->
   ok = enm:send(Sock, ReqData),
-  {reply, {ok}, State};
+  {reply, ok, State};
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
