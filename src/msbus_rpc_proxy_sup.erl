@@ -1,4 +1,4 @@
--module(msbus_rpc_proxy_sup).
+-module(msgbus_rpc_proxy_sup).
 
 -behaviour(supervisor).
 

@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 08. Nov 2016 5:00 PM
 %%%-------------------------------------------------------------------
--module(msbus_rpc_proxy).
+-module(msgbus_rpc_proxy).
 -author("shdxiang").
 
 -behaviour(gen_server).

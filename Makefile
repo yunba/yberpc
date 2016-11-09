@@ -12,22 +12,22 @@ clean:
 	./rebar -j8 clean
 
 relclean:
-	rm -rf rel/msbus_rpc_proxy
+	rm -rf rel/msgbus_rpc_proxy
 
 generate: compile
 	cd rel && .././rebar -j8 generate
 
 run: generate
-	./rel/msbus_rpc_proxy/bin/msbus_rpc_proxy start
+	./rel/msgbus_rpc_proxy/bin/msgbus_rpc_proxy start
 
 console: generate
-	./rel/msbus_rpc_proxy/bin/msbus_rpc_proxy console
+	./rel/msgbus_rpc_proxy/bin/msgbus_rpc_proxy console
 
 foreground: generate
-	./rel/msbus_rpc_proxy/bin/msbus_rpc_proxy foreground
+	./rel/msgbus_rpc_proxy/bin/msgbus_rpc_proxy foreground
 
 erl: compile
-	erl -pa ebin/ -pa deps/*/ebin/ -s msbus_rpc_proxy
+	erl -pa ebin/ -pa deps/*/ebin/ -s msgbus_rpc_proxy
 
 eunit:
 	./rebar compile eunit	

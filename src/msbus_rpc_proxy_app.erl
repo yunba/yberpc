@@ -1,4 +1,4 @@
--module(msbus_rpc_proxy_app).
+-module(msgbus_rpc_proxy_app).
 
 -behaviour(application).
 
@@ -10,7 +10,7 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    msbus_rpc_proxy_sup:start_link().
+    msgbus_rpc_proxy_sup:start_link().
 
 stop(_State) ->
     ok.

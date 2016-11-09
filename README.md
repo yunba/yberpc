@@ -1,2 +1,2 @@
-# msbus_rpc_proxy
+# msgbus_rpc_proxy
 A Erlang RPC proxy
