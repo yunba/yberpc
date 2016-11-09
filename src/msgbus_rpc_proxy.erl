@@ -15,8 +15,12 @@
 
 %% API
 -export([start_link/0,
-  create_client/1,
-  create_server/1,
+  start_client/1,
+  stop_client/1,
+  start_server/1,
+  stop_server/1,
+  join_handler/1,
+  leave_handler/1,
   sync_request/2]).
 
 %% gen_server callbacks
@@ -35,11 +39,23 @@
 %%% API
 %%%===================================================================
 
-create_client(Url) ->
-  gen_server:call(?SERVER, {create_client, Url}).
+start_client(Url) ->
+  gen_server:call(?SERVER, {start_client, Url}).
 
-create_server(Url) ->
-  gen_server:call(?SERVER, {create_server, Url}).
+stop_client(Sock) ->
+  gen_server:call(?SERVER, {stop_client, Sock}).
+
+start_server(Url) ->
+  gen_server:call(?SERVER, {start_server, Url}).
+
+stop_server(Sock) ->
+  gen_server:call(?SERVER, {stop_server, Sock}).
+
+join_handler(Pid) ->
+  gen_server:call(?SERVER, {join_handler, Pid}).
+
+leave_handler(Pid) ->
+  gen_server:call(?SERVER, {leave_handler, Pid}).
 
 sync_request(Sock, ReqData) ->
   gen_server:call(?SERVER, {sync_request, Sock, ReqData}).
@@ -94,13 +110,31 @@ init([]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_call({create_client, Url}, _From, State) ->
+handle_call({start_client, Url}, _From, State) ->
   {ok, Sock} = enm:req([{connect, Url}]),
   {reply, {ok, Sock}, State};
 
-handle_call({create_server, Url}, _From, State) ->
+handle_call({stop_client, Sock}, _From, State) ->
+  {ok, Sock} = enm:close(Sock),
+  {reply, ok, State};
+
+handle_call({start_server, Url}, _From, State) ->
   {ok, Sock} = enm:rep([{bind, Url}]),
+  pg2:create(msgbus_rpc_proxy_handler_pg2),
   {reply, {ok, Sock}, State};
+
+handle_call({stop_server, Sock}, _From, State) ->
+  {ok, Sock} = enm:close(Sock),
+  pg2:delete(msgbus_rpc_proxy_handler_pg2),
+  {reply, ok, State};
+
+handle_call({join_handler, Pid}, _From, State) ->
+  pg2:join(msgbus_rpc_proxy_handler_pg2, Pid),
+  {reply, ok, State};
+
+handle_call({leave_handler, Pid}, _From, State) ->
+  pg2:leave(msgbus_rpc_proxy_handler_pg2, Pid),
+  {reply, ok, State};
 
 handle_call({sync_request, Sock, ReqData}, _From, State) ->
   ok = enm:send(Sock, ReqData),
@@ -139,7 +173,9 @@ handle_cast(_Request, State) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 handle_info({nnrep, Rep, ReqData}, State) ->
   lager:debug("get a nnrep"),
-  {reply, ok, State};
+  Pid = pg2:get_closest_pid(msgbus_rpc_proxy_handler_pg2),
+  genserver:cast(Pid, {rpc_req_data, ReqData}),
+  {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
 
@@ -158,6 +194,7 @@ handle_info(_Info, State) ->
     State :: #state{}) -> term()).
 terminate(_Reason, _State) ->
   lager:debug("terminate"),
+%%  enm:stop(),
   ok.
 
 %%--------------------------------------------------------------------
