@@ -74,8 +74,8 @@ start_link() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  lager:debug("======init"),
-  {ok, _State} = enm:start_link(),
+  lager:debug("init"),
+  {ok, _State} = enm:start(),
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
