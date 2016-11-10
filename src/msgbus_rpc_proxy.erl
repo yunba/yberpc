@@ -90,7 +90,7 @@ start_link() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  lager:debug("init"),
+  io:format("======init"),
   enm:start_link(),
   {ok, #state{}}.
 
@@ -116,6 +116,7 @@ handle_call({start_client, Url}, _From, State) ->
   {reply, {ok, Sock}, State};
 
 handle_call({stop_client, Sock}, _From, State) ->
+  io:format("======stop_client: ~p~n", [Sock]),
   {ok, Sock} = enm:close(Sock),
   {reply, ok, State};
 
@@ -126,6 +127,7 @@ handle_call({start_server, Url}, _From, State) ->
   {reply, {ok, Sock}, State};
 
 handle_call({stop_server, Sock}, _From, State) ->
+  io:format("======stop_server: ~p~n", [Sock]),
   {ok, Sock} = enm:close(Sock),
   pg2:delete(msgbus_rpc_proxy_handler_pg2),
   {reply, ok, State};
@@ -134,7 +136,6 @@ handle_call({join_handler, Pid}, _From, State) ->
   io:format("======join_handler: ~p~n", [Pid]),
   pg2:join(msgbus_rpc_proxy_handler_pg2, Pid),
   Pid2 = pg2:get_closest_pid(msgbus_rpc_proxy_handler_pg2),
-  io:format("======join_handler2: ~p~n", [Pid2]),
   {reply, ok, State};
 
 handle_call({leave_handler, Pid}, _From, State) ->
@@ -161,11 +162,6 @@ handle_call(_Request, _From, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast({nnrep, _Rep, ReqData}, State) ->
-  io:format("======handle_cast: nnrep~n"),
-  Pid = pg2:get_closest_pid(msgbus_rpc_proxy_handler_pg2),
-  gen_server:cast(Pid, {rpc_req_data, ReqData}),
-  {noreply, State};
 handle_cast(_Request, State) ->
   {noreply, State}.
 
@@ -183,6 +179,11 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
+handle_info({nnrep, _Rep, ReqData}, State) ->
+  io:format("======receive a nnrep~n"),
+  Pid = pg2:get_closest_pid(msgbus_rpc_proxy_handler_pg2),
+  gen_server:cast(Pid, {rpc_req_data, ReqData}),
+  {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
 
