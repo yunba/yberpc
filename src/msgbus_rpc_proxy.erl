@@ -90,7 +90,7 @@ start_link() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  io:format("======init"),
+  io:format("======init~n"),
   enm:start_link(),
   {ok, #state{}}.
 
@@ -201,7 +201,7 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_Reason, _State) ->
-  lager:debug("terminate"),
+  io:format("======terminate~n"),
 %%  enm:stop(),
   ok.
 
