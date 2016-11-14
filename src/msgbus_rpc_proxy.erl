@@ -135,7 +135,6 @@ handle_call({stop_server, Sock}, _From, State) ->
 handle_call({join_handler, Pid}, _From, State) ->
   io:format("======join_handler: ~p~n", [Pid]),
   pg2:join(msgbus_rpc_proxy_handler_pg2, Pid),
-  Pid2 = pg2:get_closest_pid(msgbus_rpc_proxy_handler_pg2),
   {reply, ok, State};
 
 handle_call({leave_handler, Pid}, _From, State) ->
@@ -179,10 +178,14 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({nnrep, _Rep, ReqData}, State) ->
+handle_info({nnrep, Rep, ReqData}, State) ->
   io:format("======receive a nnrep~n"),
   Pid = pg2:get_closest_pid(msgbus_rpc_proxy_handler_pg2),
   gen_server:cast(Pid, {rpc_req_data, ReqData}),
+  ok = enm:send(Rep, <<"ok">>),
+  {noreply, State};
+handle_info({nnreq, _Req, _RepData}, State) ->
+  io:format("======receive a nnreq~n"),
   {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
