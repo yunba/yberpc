@@ -21,7 +21,7 @@
   stop_server/1,
   join_handler/1,
   leave_handler/1,
-  sync_request/2]).
+  request/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -57,8 +57,8 @@ join_handler(Pid) ->
 leave_handler(Pid) ->
   gen_server:call(?SERVER, {leave_handler, Pid}).
 
-sync_request(Sock, ReqData) ->
-  gen_server:call(?SERVER, {sync_request, Sock, ReqData}).
+request(Sock, ReqData) ->
+  gen_server:call(?SERVER, {request, Sock, ReqData}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -90,7 +90,7 @@ start_link() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  io:format("======init~n"),
+  lager:debug("init"),
   enm:start_link(),
   {ok, #state{}}.
 
@@ -111,39 +111,39 @@ init([]) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_call({start_client, Url}, _From, State) ->
-  io:format("======start_client: ~p~n", [Url]),
-  {ok, Sock} = enm:req([{connect, Url}]),
+  lager:debug("start_client: ~p", [Url]),
+  {ok, Sock} = enm:push([{connect, Url}]),
   {reply, {ok, Sock}, State};
 
 handle_call({stop_client, Sock}, _From, State) ->
-  io:format("======stop_client: ~p~n", [Sock]),
+  lager:debug("stop_client: ~p", [Sock]),
   {ok, Sock} = enm:close(Sock),
   {reply, ok, State};
 
 handle_call({start_server, Url}, _From, State) ->
-  io:format("======start_server: ~p~n", [Url]),
-  {ok, Sock} = enm:rep([{bind, Url}]),
-  pg2:create(msgbus_rpc_proxy_handler_pg2),
+  lager:debug("start_server: ~p", [Url]),
+  {ok, Sock} = enm:pull([{bind, Url}]),
+  pg2:create(rpc_proxy_handler_pg2),
   {reply, {ok, Sock}, State};
 
 handle_call({stop_server, Sock}, _From, State) ->
-  io:format("======stop_server: ~p~n", [Sock]),
+  lager:debug("stop_server: ~p", [Sock]),
   {ok, Sock} = enm:close(Sock),
-  pg2:delete(msgbus_rpc_proxy_handler_pg2),
+  pg2:delete(rpc_proxy_handler_pg2),
   {reply, ok, State};
 
 handle_call({join_handler, Pid}, _From, State) ->
-  io:format("======join_handler: ~p~n", [Pid]),
-  pg2:join(msgbus_rpc_proxy_handler_pg2, Pid),
+  lager:debug("join_handler: ~p", [Pid]),
+  pg2:join(rpc_proxy_handler_pg2, Pid),
   {reply, ok, State};
 
 handle_call({leave_handler, Pid}, _From, State) ->
-  io:format("======leave_handler: ~p~n", [Pid]),
-  pg2:leave(msgbus_rpc_proxy_handler_pg2, Pid),
+  lager:debug("leave_handler: ~p", [Pid]),
+  pg2:leave(rpc_proxy_handler_pg2, Pid),
   {reply, ok, State};
 
-handle_call({sync_request, Sock, ReqData}, _From, State) ->
-  io:format("======sync_request: ~p~n", [Sock]),
+handle_call({request, Sock, ReqData}, _From, State) ->
+  lager:debug("request: ~p", [Sock]),
   ok = enm:send(Sock, ReqData),
   {reply, ok, State};
 
@@ -178,14 +178,10 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({nnrep, Rep, ReqData}, State) ->
-  io:format("======receive a nnrep~n"),
-  Pid = pg2:get_closest_pid(msgbus_rpc_proxy_handler_pg2),
-  gen_server:cast(Pid, {rpc_req_data, ReqData}),
-  ok = enm:send(Rep, <<"ok">>),
-  {noreply, State};
-handle_info({nnreq, _Req, _RepData}, State) ->
-  io:format("======receive a nnreq~n"),
+handle_info({nnpull, _Pull, Data}, State) ->
+  lager:debug("receive a nnpull"),
+  Pid = pg2:get_closest_pid(rpc_proxy_handler_pg2),
+  gen_server:cast(Pid, {rpc_proxy_data, Data}),
   {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
@@ -204,7 +200,7 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_Reason, _State) ->
-  io:format("======terminate~n"),
+  lager:debug("terminate"),
 %%  enm:stop(),
   ok.
 

@@ -16,3 +16,11 @@
 simple_test() ->
   ?assert(true).
 
+init_test() ->
+  {ok, _State} = msgbus_rpc_proxy:start_link().
+
+start_server_test() ->
+  {ok, _Sock} = msgbus_rpc_proxy:start_server("tcp://*:9010").
+
+start_client_test() ->
+  {ok, _Sock} = msgbus_rpc_proxy:start_client("tcp://localhost:9010").

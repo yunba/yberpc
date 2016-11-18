@@ -29,5 +29,5 @@ foreground: generate
 erl: compile
 	erl -pa ebin/ -pa deps/*/ebin/ -s msgbus_rpc_proxy
 
-eunit:
+eunit: deps
 	./rebar compile eunit	
