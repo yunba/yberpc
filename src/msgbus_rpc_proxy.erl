@@ -13,6 +13,8 @@
 
 -compile({parse_transform, lager_transform}).
 
+%%-include_lib("eunit/include/eunit.hrl").
+
 %% API
 -export([start_link/0,
   start_client/1,
@@ -21,7 +23,7 @@
   stop_server/1,
   join_handler/1,
   leave_handler/1,
-  request/2]).
+  rpc/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -57,8 +59,8 @@ join_handler(Pid) ->
 leave_handler(Pid) ->
   gen_server:call(?SERVER, {leave_handler, Pid}).
 
-request(Sock, ReqData) ->
-  gen_server:call(?SERVER, {request, Sock, ReqData}).
+rpc(Sock, Data) ->
+  gen_server:call(?SERVER, {rpc, Sock, Data}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -117,7 +119,7 @@ handle_call({start_client, Url}, _From, State) ->
 
 handle_call({stop_client, Sock}, _From, State) ->
   lager:debug("stop_client: ~p", [Sock]),
-  {ok, Sock} = enm:close(Sock),
+  ok = enm:close(Sock),
   {reply, ok, State};
 
 handle_call({start_server, Url}, _From, State) ->
@@ -128,7 +130,7 @@ handle_call({start_server, Url}, _From, State) ->
 
 handle_call({stop_server, Sock}, _From, State) ->
   lager:debug("stop_server: ~p", [Sock]),
-  {ok, Sock} = enm:close(Sock),
+  ok = enm:close(Sock),
   pg2:delete(rpc_proxy_handler_pg2),
   {reply, ok, State};
 
@@ -142,9 +144,9 @@ handle_call({leave_handler, Pid}, _From, State) ->
   pg2:leave(rpc_proxy_handler_pg2, Pid),
   {reply, ok, State};
 
-handle_call({request, Sock, ReqData}, _From, State) ->
-  lager:debug("request: ~p", [Sock]),
-  ok = enm:send(Sock, ReqData),
+handle_call({rpc, Sock, Data}, _From, State) ->
+  lager:debug("rpc: ~p", [Sock]),
+  ok = enm:send(Sock, Data),
   {reply, ok, State};
 
 handle_call(_Request, _From, State) ->
@@ -178,10 +180,14 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({nnpull, _Pull, Data}, State) ->
-  lager:debug("receive a nnpull"),
-  Pid = pg2:get_closest_pid(rpc_proxy_handler_pg2),
-  gen_server:cast(Pid, {rpc_proxy_data, Data}),
+handle_info({nnpull, Sock, Data}, State) ->
+  lager:debug("receive a nnpull: ~p", [Sock]),
+  case pg2:get_closest_pid(rpc_proxy_handler_pg2) of
+    Pid when is_pid(Pid) ->
+      Pid ! {rpc_proxy_data, Sock, Data};
+    Else ->
+      lager:debug("get pid failed: ~p", [Else])
+  end,
   {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
