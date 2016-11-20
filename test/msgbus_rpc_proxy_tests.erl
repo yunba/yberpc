@@ -21,11 +21,11 @@ init_test() ->
   ets:new(data, [set, named_table]).
 
 start_server_test() ->
-  {ok, Sock} = msgbus_rpc_proxy:start_server("tcp://*:9010"),
+  {ok, Sock} = msgbus_rpc_proxy:start_server("tcp://*:9000"),
   ets:insert(data, {server_sock, Sock}).
 
 start_client_test() ->
-  {ok, Sock} = msgbus_rpc_proxy:start_client("tcp://localhost:9010"),
+  {ok, Sock} = msgbus_rpc_proxy:start_client("tcp://localhost:9000"),
   ets:insert(data, {client_sock, Sock}).
 
 join_handler_test() ->

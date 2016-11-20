@@ -114,7 +114,7 @@ init([]) ->
 
 handle_call({start_client, Url}, _From, State) ->
   lager:debug("start_client: ~p", [Url]),
-  {ok, Sock} = enm:push([{connect, Url}]),
+  {ok, Sock} = enm:push([{connect, Url}, raw]),
   {reply, {ok, Sock}, State};
 
 handle_call({stop_client, Sock}, _From, State) ->
@@ -124,7 +124,7 @@ handle_call({stop_client, Sock}, _From, State) ->
 
 handle_call({start_server, Url}, _From, State) ->
   lager:debug("start_server: ~p", [Url]),
-  {ok, Sock} = enm:pull([{bind, Url}]),
+  {ok, Sock} = enm:pull([{bind, Url}, raw]),
   pg2:create(rpc_proxy_handler_pg2),
   {reply, {ok, Sock}, State};
 
