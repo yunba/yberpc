@@ -67,7 +67,7 @@ start_link(Args) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init(Args) ->
-  ?debugFmt("init: ~p", [Args]),
+  lager:debug("init: ~p", [Args]),
   [{Type, Url}] = Args,
   case Type of
     server ->
@@ -77,7 +77,7 @@ init(Args) ->
       {ok, Sock} = enm:push([{connect, Url}, raw]),
       {ok, #state{sock = Sock}};
     Other ->
-      ?debugFmt("unknown type: ~p", [Other]),
+      lager:debug("unknown type: ~p", [Other]),
       {stop, unknown_type}
   end.
 
@@ -98,11 +98,11 @@ init(Args) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_call({set_handler, Handler}, _From, State) ->
-  ?debugFmt("set_handler: ~p", [Handler]),
+  lager:debug("set_handler: ~p", [Handler]),
   {reply, ok, State#state{handler = Handler}};
 
 handle_call({rpc, Data}, _From, #state{sock = Sock} = State) ->
-  ?debugFmt("rpc: ~p", [Sock]),
+  lager:debug("rpc: ~p", [Sock]),
   ok = enm:send(Sock, Data),
   {reply, ok, State};
 
@@ -138,11 +138,11 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 handle_info({nnpull, Sock, Data}, #state{sock = Sock, handler = Handler} = State) when is_pid(Handler) ->
-  ?debugFmt("receive a nnpull: ~p", [Sock]),
+  lager:debug("receive a nnpull: ~p", [Sock]),
   Handler ! {rpc_proxy_data, Data},
   {noreply, State};
 handle_info({nnpull, Sock, _Data}, #state{sock = Sock, handler = Handler} = State) ->
-  ?debugFmt("receive a nnpull: ~p, handler: ~p", [Sock, Handler]),
+  lager:debug("receive a nnpull: ~p, handler: ~p", [Sock, Handler]),
   {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
@@ -161,7 +161,7 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_Reason, #state{sock = Sock} = _State) ->
-  ?debugMsg("terminate"),
+  lager:debug("terminate"),
   enm:close(Sock),
   ok.
 
