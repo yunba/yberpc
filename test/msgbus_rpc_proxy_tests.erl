@@ -22,18 +22,15 @@ init_test() ->
   ets:new(data, [set, named_table]).
 
 start_server_test() ->
-  {ok, Pid} = msgbus_rpc_proxy:start_server("tcp://*:9000"),
+  {ok, Pid} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
   ets:insert(data, {server_pid, Pid}).
 
 start_client_test() ->
-  {ok, Pid} = msgbus_rpc_proxy:start_client("tcp://localhost:9000"),
+  {ok, Pid} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
   ets:insert(data, {client_pid, Pid}).
 
-set_handler_test() ->
-  [{server_pid, ServerPid}] = ets:lookup(data, server_pid),
+rpc_test() ->
   [{client_pid, ClientPid}] = ets:lookup(data, client_pid),
-
-  ok = msgbus_rpc_proxy:set_handler(ServerPid, self()),
 
   Data = <<"test">>,
   ok = msgbus_rpc_proxy:rpc(ClientPid, Data),
