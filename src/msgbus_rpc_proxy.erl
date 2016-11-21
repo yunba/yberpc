@@ -13,17 +13,10 @@
 
 -compile({parse_transform, lager_transform}).
 
-%%-include_lib("eunit/include/eunit.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %% API
--export([start_link/0,
-  start_client/1,
-  stop_client/1,
-  start_server/1,
-  stop_server/1,
-  join_handler/1,
-  leave_handler/1,
-  rpc/2]).
+-export([start_link/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -35,32 +28,14 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {}).
+-record(state, {
+  sock,
+  handler
+}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
-
-start_client(Url) ->
-  gen_server:call(?SERVER, {start_client, Url}).
-
-stop_client(Sock) ->
-  gen_server:call(?SERVER, {stop_client, Sock}).
-
-start_server(Url) ->
-  gen_server:call(?SERVER, {start_server, Url}).
-
-stop_server(Sock) ->
-  gen_server:call(?SERVER, {stop_server, Sock}).
-
-join_handler(Pid) ->
-  gen_server:call(?SERVER, {join_handler, Pid}).
-
-leave_handler(Pid) ->
-  gen_server:call(?SERVER, {leave_handler, Pid}).
-
-rpc(Sock, Data) ->
-  gen_server:call(?SERVER, {rpc, Sock, Data}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -68,10 +43,10 @@ rpc(Sock, Data) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link() ->
+-spec(start_link(Args :: term()) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link() ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+start_link(Args) ->
+  gen_server:start_link(?MODULE, [Args], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -91,10 +66,20 @@ start_link() ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init([]) ->
-  lager:debug("init"),
-  enm:start_link(),
-  {ok, #state{}}.
+init(Args) ->
+  ?debugFmt("init: ~p", [Args]),
+  [{Type, Url}] = Args,
+  case Type of
+    server ->
+      {ok, Sock} = enm:pull([{bind, Url}, raw]),
+      {ok, #state{sock = Sock}};
+    client ->
+      {ok, Sock} = enm:push([{connect, Url}, raw]),
+      {ok, #state{sock = Sock}};
+    Other ->
+      ?debugFmt("unknown type: ~p", [Other]),
+      {stop, unknown_type}
+  end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -112,40 +97,12 @@ init([]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_call({start_client, Url}, _From, State) ->
-  lager:debug("start_client: ~p", [Url]),
-  {ok, Sock} = enm:push([{connect, Url}, raw]),
-  {reply, {ok, Sock}, State};
+handle_call({set_handler, Handler}, _From, State) ->
+  ?debugFmt("set_handler: ~p", [Handler]),
+  {reply, ok, State#state{handler = Handler}};
 
-handle_call({stop_client, Sock}, _From, State) ->
-  lager:debug("stop_client: ~p", [Sock]),
-  ok = enm:close(Sock),
-  {reply, ok, State};
-
-handle_call({start_server, Url}, _From, State) ->
-  lager:debug("start_server: ~p", [Url]),
-  {ok, Sock} = enm:pull([{bind, Url}, raw]),
-  pg2:create(rpc_proxy_handler_pg2),
-  {reply, {ok, Sock}, State};
-
-handle_call({stop_server, Sock}, _From, State) ->
-  lager:debug("stop_server: ~p", [Sock]),
-  ok = enm:close(Sock),
-  pg2:delete(rpc_proxy_handler_pg2),
-  {reply, ok, State};
-
-handle_call({join_handler, Pid}, _From, State) ->
-  lager:debug("join_handler: ~p", [Pid]),
-  pg2:join(rpc_proxy_handler_pg2, Pid),
-  {reply, ok, State};
-
-handle_call({leave_handler, Pid}, _From, State) ->
-  lager:debug("leave_handler: ~p", [Pid]),
-  pg2:leave(rpc_proxy_handler_pg2, Pid),
-  {reply, ok, State};
-
-handle_call({rpc, Sock, Data}, _From, State) ->
-  lager:debug("rpc: ~p", [Sock]),
+handle_call({rpc, Data}, _From, #state{sock = Sock} = State) ->
+  ?debugFmt("rpc: ~p", [Sock]),
   ok = enm:send(Sock, Data),
   {reply, ok, State};
 
@@ -180,14 +137,9 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({nnpull, Sock, Data}, State) ->
-  lager:debug("receive a nnpull: ~p", [Sock]),
-  case pg2:get_closest_pid(rpc_proxy_handler_pg2) of
-    Pid when is_pid(Pid) ->
-      Pid ! {rpc_proxy_data, Sock, Data};
-    Else ->
-      lager:debug("get pid failed: ~p", [Else])
-  end,
+handle_info({nnpull, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
+  ?debugFmt("receive a nnpull: ~p", [Sock]),
+  Handler ! {rpc_proxy_data, Data},
   {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
@@ -205,9 +157,9 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
-terminate(_Reason, _State) ->
-  lager:debug("terminate"),
-%%  enm:stop(),
+terminate(_Reason, #state{sock = Sock} = _State) ->
+  ?debugMsg("terminate"),
+  enm:close(Sock),
   ok.
 
 %%--------------------------------------------------------------------
