@@ -137,9 +137,12 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({nnpull, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
+handle_info({nnpull, Sock, Data}, #state{sock = Sock, handler = Handler} = State) when is_pid(Handler) ->
   ?debugFmt("receive a nnpull: ~p", [Sock]),
   Handler ! {rpc_proxy_data, Data},
+  {noreply, State};
+handle_info({nnpull, Sock, _Data}, #state{sock = Sock, handler = Handler} = State) ->
+  ?debugFmt("receive a nnpull: ~p, handler: ~p", [Sock, Handler]),
   {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
