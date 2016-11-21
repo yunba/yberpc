@@ -45,4 +45,4 @@ stop_client(Pid) ->
 init([]) ->
   {ok, {{simple_one_for_one, 1, 5},
     [{undefined, {msgbus_rpc_proxy_gs, start_link, []},
-      permanent, 5000, worker, [msgbus_rpc_proxy]}]}}.
+      transient, 5000, worker, [msgbus_rpc_proxy]}]}}.
