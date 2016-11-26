@@ -46,4 +46,4 @@ stop_server_test() ->
 
 stop_client_test() ->
   [{client_pid, ClientPid}] = ets:lookup(data, client_pid),
-  ok = msgbus_rpc_proxy:stop_server(ClientPid).
+  ok = msgbus_rpc_proxy:stop_client(ClientPid).
