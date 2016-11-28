@@ -97,10 +97,6 @@ init(Args) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_call({set_handler, Handler}, _From, State) ->
-  lager:debug("set_handler: ~p", [Handler]),
-  {reply, ok, State#state{handler = Handler}};
-
 handle_call({rpc, Data}, _From, #state{sock = Sock} = State) ->
   lager:debug("rpc: ~p", [Sock]),
   ok = enm:send(Sock, Data),
