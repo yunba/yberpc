@@ -10,7 +10,7 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    {ok, _Pid} = enm:start_link(),
+    enm:start_link(),
     msgbus_rpc_proxy:start_link().
 
 stop(_State) ->
