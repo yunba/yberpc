@@ -69,11 +69,14 @@ start_link(Args) ->
 init([{server, Url, Handler}]) ->
   lager:debug("init server: ~p", [Url]),
   {ok, Sock} = enm:pull([{bind, Url}, raw]),
+  ?debugFmt("server: ~p", [Sock]),
   {ok, #state{sock = Sock, handler = Handler}};
 
 init([{client, Url, Handler}]) ->
   lager:debug("init client: ~p", [Url]),
+%%  https://github.com/basho/enm/issues/7
   {ok, Sock} = enm:push([{connect, Url}, raw]),
+  ?debugFmt("client: ~p", [Sock]),
   {ok, #state{sock = Sock, handler = Handler}}.
 
 %%--------------------------------------------------------------------
