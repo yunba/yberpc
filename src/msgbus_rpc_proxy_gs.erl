@@ -66,20 +66,15 @@ start_link(Args) ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init(Args) ->
-  lager:debug("init: ~p", [Args]),
-  [{Type, Url, Handler}] = Args,
-  case Type of
-    server ->
-      {ok, Sock} = enm:pull([{bind, Url}, raw]),
-      {ok, #state{sock = Sock, handler = Handler}};
-    client ->
-      {ok, Sock} = enm:push([{connect, Url}, raw]),
-      {ok, #state{sock = Sock, handler = Handler}};
-    Other ->
-      lager:debug("unknown type: ~p", [Other]),
-      {stop, unknown_type}
-  end.
+init([{server, Url, Handler}]) ->
+  lager:debug("init server: ~p", [Url]),
+  {ok, Sock} = enm:pull([{bind, Url}, raw]),
+  {ok, #state{sock = Sock, handler = Handler}};
+
+init([{client, Url, Handler}]) ->
+  lager:debug("init client: ~p", [Url]),
+  {ok, Sock} = enm:push([{connect, Url}, raw]),
+  {ok, #state{sock = Sock, handler = Handler}}.
 
 %%--------------------------------------------------------------------
 %% @private
