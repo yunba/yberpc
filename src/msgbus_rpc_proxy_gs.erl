@@ -13,6 +13,7 @@
 
 -compile({parse_transform, lager_transform}).
 
+-define(NODEBUG, true).
 -include_lib("eunit/include/eunit.hrl").
 
 %% API
