@@ -70,16 +70,16 @@ start_link(Args) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([{server, Url, Handler}]) ->
-  ?debugFmt("init server: ~p", [Url]),
+  lager:debug("init server: ~p", [Url]),
   {ok, Sock} = enm:rep([{bind, Url}, {nodelay, true}]),
-  ?debugFmt("server: ~p", [Sock]),
+  lager:debug("server: ~p", [Sock]),
   {ok, #state{sock = Sock, handler = Handler}};
 
 init([{client, Url, Handler}]) ->
-  ?debugFmt("init client: ~p", [Url]),
+  lager:debug("init client: ~p", [Url]),
 %%  https://github.com/basho/enm/issues/7
   {ok, Sock} = enm:req([{connect, Url}, {nodelay, true}]),
-  ?debugFmt("client: ~p", [Sock]),
+  lager:debug("client: ~p", [Sock]),
   {ok, #state{sock = Sock, handler = Handler}}.
 
 %%--------------------------------------------------------------------
@@ -99,7 +99,7 @@ init([{client, Url, Handler}]) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_call({rpc, ReqData}, _From, #state{sock = Sock} = State) ->
-  ?debugFmt("rpc: ~p", [Sock]),
+  lager:debug("rpc: ~p", [Sock]),
   ok = enm:send(Sock, ReqData),
 
   receive
@@ -141,12 +141,12 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State) when is_pid(Handler) ->
-  ?debugFmt("receive a nnrep: ~p", [Sock]),
+  lager:debug("receive a nnrep: ~p", [Sock]),
   ok = enm:send(Sock, <<0>>),
   Handler ! {rpc_proxy_data, Data},
   {noreply, State};
 handle_info({nnrep, Sock, _Data}, #state{sock = Sock, handler = Handler} = State) ->
-  ?debugFmt("receive a nnrep: ~p, handler: ~p", [Sock, Handler]),
+  lager:debug("receive a nnrep: ~p, handler: ~p", [Sock, Handler]),
   ok = enm:send(Sock, <<0>>),
   {noreply, State};
 handle_info(_Info, State) ->
@@ -166,7 +166,7 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_Reason, #state{sock = Sock} = _State) ->
-  ?debugFmt("terminate", []),
+  lager:debug("terminate", []),
   enm:close(Sock),
   ok.
 
