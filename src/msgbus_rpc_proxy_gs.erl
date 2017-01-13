@@ -29,6 +29,8 @@
 
 -define(SERVER, ?MODULE).
 
+-define(REQ_TIMEOUT, 2000).
+
 -record(state, {
   sock,
   handler
@@ -68,15 +70,15 @@ start_link(Args) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([{server, Url, Handler}]) ->
-  lager:debug("init server: ~p", [Url]),
-  {ok, Sock} = enm:pull([{bind, Url}, raw]),
+  ?debugFmt("init server: ~p", [Url]),
+  {ok, Sock} = enm:rep([{bind, Url}, {nodelay, true}]),
   ?debugFmt("server: ~p", [Sock]),
   {ok, #state{sock = Sock, handler = Handler}};
 
 init([{client, Url, Handler}]) ->
-  lager:debug("init client: ~p", [Url]),
+  ?debugFmt("init client: ~p", [Url]),
 %%  https://github.com/basho/enm/issues/7
-  {ok, Sock} = enm:push([{connect, Url}, raw]),
+  {ok, Sock} = enm:req([{connect, Url}, {nodelay, true}]),
   ?debugFmt("client: ~p", [Sock]),
   {ok, #state{sock = Sock, handler = Handler}}.
 
@@ -96,10 +98,16 @@ init([{client, Url, Handler}]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_call({rpc, Data}, _From, #state{sock = Sock} = State) ->
-  lager:debug("rpc: ~p", [Sock]),
-  ok = enm:send(Sock, Data),
-  {reply, ok, State};
+handle_call({rpc, ReqData}, _From, #state{sock = Sock} = State) ->
+  ?debugFmt("rpc: ~p", [Sock]),
+  ok = enm:send(Sock, ReqData),
+
+  receive
+    {nnreq, Sock, RepData} ->
+      {reply, {ok, RepData}, State}
+  after
+    ?REQ_TIMEOUT -> {reply, {error, timeout}, State}
+  end;
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
@@ -132,12 +140,14 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({nnpull, Sock, Data}, #state{sock = Sock, handler = Handler} = State) when is_pid(Handler) ->
-  lager:debug("receive a nnpull: ~p", [Sock]),
+handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State) when is_pid(Handler) ->
+  ?debugFmt("receive a nnrep: ~p", [Sock]),
+  ok = enm:send(Sock, <<0>>),
   Handler ! {rpc_proxy_data, Data},
   {noreply, State};
-handle_info({nnpull, Sock, _Data}, #state{sock = Sock, handler = Handler} = State) ->
-  lager:debug("receive a nnpull: ~p, handler: ~p", [Sock, Handler]),
+handle_info({nnrep, Sock, _Data}, #state{sock = Sock, handler = Handler} = State) ->
+  ?debugFmt("receive a nnrep: ~p, handler: ~p", [Sock, Handler]),
+  ok = enm:send(Sock, <<0>>),
   {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
@@ -156,7 +166,7 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_Reason, #state{sock = Sock} = _State) ->
-  lager:debug("terminate"),
+  ?debugFmt("terminate", []),
   enm:close(Sock),
   ok.
 

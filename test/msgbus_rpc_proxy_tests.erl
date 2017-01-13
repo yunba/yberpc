@@ -30,7 +30,7 @@ rpc_test() ->
   [{client_pid, ClientPid}] = ets:lookup(data, client_pid),
 
   Data = <<"test">>,
-  ok = msgbus_rpc_proxy:rpc(ClientPid, Data),
+  {ok, <<0>>} = msgbus_rpc_proxy:rpc(ClientPid, Data),
   receive
     {rpc_proxy_data, Data} -> ok
   after
@@ -47,7 +47,7 @@ stop_client_test() ->
 
 rpc_one_time(ClientPid, Data) ->
 %%  timer:sleep(1),
-  ok = msgbus_rpc_proxy:rpc(ClientPid, Data).
+  {ok, <<0>>} = msgbus_rpc_proxy:rpc(ClientPid, Data).
 
 rpc_times(N, ClientPid, Data) when N > 0 ->
   rpc_one_time(ClientPid, Data),
