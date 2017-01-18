@@ -15,7 +15,7 @@
 
 init_test() ->
   enm:start_link(),
-  msgbus_rpc_proxy:start_link(),
+  msgbus_rpc_proxy_sup:start_link(),
   ets:new(data, [set, public, named_table]).
 
 start_server_test() ->
@@ -46,7 +46,6 @@ stop_client_test() ->
   ok = msgbus_rpc_proxy:stop_client(ClientPid).
 
 rpc_one_time(ClientPid, Data) ->
-%%  timer:sleep(1),
   {ok, <<0>>} = msgbus_rpc_proxy:rpc(ClientPid, Data).
 
 rpc_times(N, ClientPid, Data) when N > 0 ->
@@ -86,8 +85,8 @@ benchmark_test_() ->
   {timeout, 60,
     fun() ->
       ?debugFmt("benchmark_test may take 10 seconds", []),
-      N = 100000,
-      DataLen = 4096,
+      N = 50000,
+      DataLen = 1024,
       Receiver = spawn(fun() ->
         recv_times(N) end),
 

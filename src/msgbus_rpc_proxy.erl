@@ -13,11 +13,16 @@
 
 -compile({parse_transform, lager_transform}).
 
--define(NODEBUG, true).
+%%-define(NODEBUG, true).
 -include_lib("eunit/include/eunit.hrl").
 
 %% API
--export([start_link/1]).
+-export([start_link/1,
+  start_server/2,
+  start_client/2,
+  rpc/2,
+  stop_server/1,
+  stop_client/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -51,6 +56,21 @@
 start_link(Args) ->
   gen_server:start_link(?MODULE, [Args], []).
 
+start_server(Url, Handler) ->
+  supervisor:start_child(msgbus_rpc_proxy_sup, [{server, Url, Handler}]).
+
+start_client(Url, Handler) ->
+  supervisor:start_child(msgbus_rpc_proxy_sup, [{client, Url, Handler}]).
+
+rpc(Pid, Data) ->
+  gen_server:call(Pid, {rpc, Data}).
+
+stop_server(Pid) ->
+  supervisor:terminate_child(msgbus_rpc_proxy_sup, Pid).
+
+stop_client(Pid) ->
+  supervisor:terminate_child(msgbus_rpc_proxy_sup, Pid).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -70,16 +90,16 @@ start_link(Args) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([{server, Url, Handler}]) ->
-  lager:debug("init server: ~p", [Url]),
+  ?debugFmt("init server: ~p", [Url]),
   {ok, Sock} = enm:rep([{bind, Url}, {nodelay, true}]),
-  lager:debug("server: ~p", [Sock]),
+  ?debugFmt("server: ~p", [Sock]),
   {ok, #state{sock = Sock, handler = Handler}};
 
 init([{client, Url, Handler}]) ->
-  lager:debug("init client: ~p", [Url]),
+  ?debugFmt("init client: ~p", [Url]),
 %%  https://github.com/basho/enm/issues/7
   {ok, Sock} = enm:req([{connect, Url}, {nodelay, true}]),
-  lager:debug("client: ~p", [Sock]),
+  ?debugFmt("client: ~p", [Sock]),
   {ok, #state{sock = Sock, handler = Handler}}.
 
 %%--------------------------------------------------------------------
@@ -99,7 +119,7 @@ init([{client, Url, Handler}]) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_call({rpc, ReqData}, _From, #state{sock = Sock} = State) ->
-  lager:debug("rpc: ~p", [Sock]),
+  ?debugFmt("rpc: ~p", [Sock]),
   ok = enm:send(Sock, ReqData),
 
   receive
@@ -141,12 +161,12 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State) when is_pid(Handler) ->
-  lager:debug("receive a nnrep: ~p", [Sock]),
+  ?debugFmt("receive a nnrep: ~p", [Sock]),
   ok = enm:send(Sock, <<0>>),
   Handler ! {rpc_proxy_data, Data},
   {noreply, State};
 handle_info({nnrep, Sock, _Data}, #state{sock = Sock, handler = Handler} = State) ->
-  lager:debug("receive a nnrep: ~p, handler: ~p", [Sock, Handler]),
+  ?debugFmt("receive a nnrep: ~p, handler: ~p", [Sock, Handler]),
   ok = enm:send(Sock, <<0>>),
   {noreply, State};
 handle_info(_Info, State) ->
@@ -166,7 +186,7 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_Reason, #state{sock = Sock} = _State) ->
-  lager:debug("terminate", []),
+  ?debugFmt("terminate", []),
   enm:close(Sock),
   ok.
 
