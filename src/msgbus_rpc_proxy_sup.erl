@@ -23,6 +23,4 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-  {ok, {{simple_one_for_one, 1, 5},
-    [{undefined, {msgbus_rpc_proxy, start_link, []},
-      transient, 5000, worker, [msgbus_rpc_proxy]}]}}.
+  {ok, { {one_for_one, 5, 10}, [?CHILD(msgbus_rpc_proxy, worker)]} }.

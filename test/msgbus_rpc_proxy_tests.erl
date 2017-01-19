@@ -28,11 +28,17 @@ start_client_test() ->
 
 rpc_test() ->
   [{client_pid, ClientPid}] = ets:lookup(data, client_pid),
+  [{server_pid, ServerPid}] = ets:lookup(data, server_pid),
 
   Data = <<"test">>,
-  {ok, <<0>>} = msgbus_rpc_proxy:rpc(ClientPid, Data),
+  msgbus_rpc_proxy:rpc(ClientPid, Data),
   receive
-    {rpc_proxy_data, Data} -> ok
+    {rpc_proxy_req, {ServerPid, Data}} ->
+      receive
+        {rpc_proxy_rep, {ClientPid, <<0>>}} -> ok
+      after
+        100 -> ?assert(false)
+      end
   after
     100 -> ?assert(false)
   end.
@@ -45,14 +51,24 @@ stop_client_test() ->
   [{client_pid, ClientPid}] = ets:lookup(data, client_pid),
   ok = msgbus_rpc_proxy:stop_client(ClientPid).
 
-rpc_one_time(ClientPid, Data) ->
-  {ok, <<0>>} = msgbus_rpc_proxy:rpc(ClientPid, Data).
+rpc_one_time(ServerPid, ClientPid, Data) ->
+  msgbus_rpc_proxy:rpc(ClientPid, Data),
+  receive
+    {rpc_proxy_req, {ServerPid, Data}} ->
+      receive
+        {rpc_proxy_rep, {ClientPid, <<0>>}} -> ok
+      after
+        100 -> ?assert(false)
+      end
+  after
+    100 -> ?assert(false)
+  end.
 
-rpc_times(N, ClientPid, Data) when N > 0 ->
-  rpc_one_time(ClientPid, Data),
-  rpc_times(N - 1, ClientPid, Data);
+rpc_times(N, ServerPid, ClientPid, Data) when N > 0 ->
+  rpc_one_time(ServerPid, ClientPid, Data),
+  rpc_times(N - 1, ServerPid, ClientPid, Data);
 
-rpc_times(N, _ClientPid, _Data) when N =:= 0 ->
+rpc_times(N, _ServerPid, _ClientPid, _Data) when N =:= 0 ->
   ok.
 
 build_buffer(Length) when Length > 1 ->
@@ -62,48 +78,23 @@ build_buffer(Length) when Length > 1 ->
 build_buffer(Length) when Length =:= 1 ->
   <<"0">>.
 
-recv_one_time() ->
-  receive
-    {rpc_proxy_data, _} ->
-      Result = case ets:lookup(data, count) of
-                 [{count, Count}] ->
-                   Count + 1;
-                 _ ->
-                   1
-               end,
-      ets:insert(data, {count, Result})
-  end.
-
-recv_times(N) when N > 0 ->
-  recv_one_time(),
-  recv_times(N - 1);
-
-recv_times(N) when N =:= 0 ->
-  ok.
-
 benchmark_test_() ->
   {timeout, 60,
     fun() ->
       ?debugFmt("benchmark_test may take 10 seconds", []),
-      N = 50000,
+      N = 100000,
       DataLen = 1024,
-      Receiver = spawn(fun() ->
-        recv_times(N) end),
 
-      {ok, ServerPid} = msgbus_rpc_proxy:start_server("tcp://*:9000", Receiver),
+      {ok, ServerPid} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
       timer:sleep(100),
       {ok, ClientPid} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
       timer:sleep(100),
 
       Data = build_buffer(DataLen),
       Begin = os:timestamp(),
-      rpc_times(N, ClientPid, Data),
+      rpc_times(N, ServerPid, ClientPid, Data),
       End = os:timestamp(),
       Diff = timer:now_diff(End, Begin),
-
-      timer:sleep(1000),
-%%      make sure server receive N message
-      [{count, N}] = ets:lookup(data, count),
 
       ?debugFmt("data: ~p bytes, count: ~p, time: ~p ms", [DataLen, N, Diff / 1000]),
       msgbus_rpc_proxy:stop_client(ClientPid),
