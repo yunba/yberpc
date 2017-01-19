@@ -6,23 +6,23 @@ Erlang RPC 库。
 
 ## start_server(Url, Handler)
 
-启动 RPC 服务器。_Url_ 为监听地址，_Handler_ 为处理收到数据的进程 `PID`，返回值为一个 `PID`。
+启动 RPC 服务器。_Url_ 为监听地址，_Handler_ 为处理收到数据的进程 `PID`，返回值为一个 socket。
 
 ## start_client(Url, Handler)
 
-启动 RPC 客户端。_Url_ 为连接地址，_Handler_ 为处理收到数据的进程 `PID`，返回值为一个 `PID`。
+启动 RPC 客户端。_Url_ 为连接地址，_Handler_ 为处理收到数据的进程 `PID`，返回值为一个 socket。
 
-## rpc(Pid, ReqData)
+## rpc(Sock, ReqData)
 
-发起 RPC 调用。_PID_ 为 `start_client` 返回的 `PID`，_ReqData_ 为请求数据。
+发起 RPC 调用。_PID_ 为 `start_client` 返回的 socket，_ReqData_ 为请求数据。
 
-## stop_server(Pid)
+## stop_server(Sock)
 
-停止 RPC 服务器。_PID_ 为 `start_server` 返回的 `PID`。
+停止 RPC 服务器。_PID_ 为 `start_server` 返回的 socket。
 
-## stop_client(Pid)
+## stop_client(Sock)
 
-停止 RPC 客户端。_PID_ 为 `start_client` 返回的 `PID`。
+停止 RPC 客户端。_PID_ 为 `start_client` 返回的 socket。
 
 ## Benchmark
 
