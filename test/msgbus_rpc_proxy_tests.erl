@@ -19,23 +19,23 @@ init_test() ->
   ets:new(data, [set, public, named_table]).
 
 start_server_test() ->
-  {ok, Pid} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
-  ets:insert(data, {server_pid, Pid}).
+  {ok, Sock} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
+  ets:insert(data, {server_sock, Sock}).
 
 start_client_test() ->
-  {ok, Pid} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
-  ets:insert(data, {client_pid, Pid}).
+  {ok, Sock} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
+  ets:insert(data, {client_sock, Sock}).
 
 rpc_test() ->
-  [{client_pid, ClientPid}] = ets:lookup(data, client_pid),
-  [{server_pid, ServerPid}] = ets:lookup(data, server_pid),
+  [{client_sock, ClientSock}] = ets:lookup(data, client_sock),
+  [{server_sock, ServerSock}] = ets:lookup(data, server_sock),
 
   Data = <<"test">>,
-  msgbus_rpc_proxy:rpc(ClientPid, Data),
+  msgbus_rpc_proxy:rpc(ClientSock, Data),
   receive
-    {rpc_proxy_req, {ServerPid, Data}} ->
+    {rpc_proxy_req, {ServerSock, Data}} ->
       receive
-        {rpc_proxy_rep, {ClientPid, <<0>>}} -> ok
+        {rpc_proxy_rep, {ClientSock, <<0>>}} -> ok
       after
         100 -> ?assert(false)
       end
@@ -44,19 +44,19 @@ rpc_test() ->
   end.
 
 stop_server_test() ->
-  [{server_pid, ServerPid}] = ets:lookup(data, server_pid),
-  ok = msgbus_rpc_proxy:stop_server(ServerPid).
+  [{server_sock, ServerSock}] = ets:lookup(data, server_sock),
+  ok = msgbus_rpc_proxy:stop_server(ServerSock).
 
 stop_client_test() ->
-  [{client_pid, ClientPid}] = ets:lookup(data, client_pid),
-  ok = msgbus_rpc_proxy:stop_client(ClientPid).
+  [{client_sock, ClientSock}] = ets:lookup(data, client_sock),
+  ok = msgbus_rpc_proxy:stop_client(ClientSock).
 
-rpc_one_time(ServerPid, ClientPid, Data) ->
-  msgbus_rpc_proxy:rpc(ClientPid, Data),
+rpc_one_time(ServerSock, ClientSock, Data) ->
+  msgbus_rpc_proxy:rpc(ClientSock, Data),
   receive
-    {rpc_proxy_req, {ServerPid, Data}} ->
+    {rpc_proxy_req, {ServerSock, Data}} ->
       receive
-        {rpc_proxy_rep, {ClientPid, <<0>>}} -> ok
+        {rpc_proxy_rep, {ClientSock, <<0>>}} -> ok
       after
         100 -> ?assert(false)
       end
@@ -64,11 +64,11 @@ rpc_one_time(ServerPid, ClientPid, Data) ->
     100 -> ?assert(false)
   end.
 
-rpc_times(N, ServerPid, ClientPid, Data) when N > 0 ->
-  rpc_one_time(ServerPid, ClientPid, Data),
-  rpc_times(N - 1, ServerPid, ClientPid, Data);
+rpc_times(N, ServerSock, ClientSock, Data) when N > 0 ->
+  rpc_one_time(ServerSock, ClientSock, Data),
+  rpc_times(N - 1, ServerSock, ClientSock, Data);
 
-rpc_times(N, _ServerPid, _ClientPid, _Data) when N =:= 0 ->
+rpc_times(N, _ServerSock, _ClientSock, _Data) when N =:= 0 ->
   ok.
 
 build_buffer(Length) when Length > 1 ->
@@ -85,18 +85,18 @@ benchmark_test_() ->
       N = 100000,
       DataLen = 1024,
 
-      {ok, ServerPid} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
+      {ok, ServerSock} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
       timer:sleep(100),
-      {ok, ClientPid} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
+      {ok, ClientSock} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
       timer:sleep(100),
 
       Data = build_buffer(DataLen),
       Begin = os:timestamp(),
-      rpc_times(N, ServerPid, ClientPid, Data),
+      rpc_times(N, ServerSock, ClientSock, Data),
       End = os:timestamp(),
       Diff = timer:now_diff(End, Begin),
 
       ?debugFmt("data: ~p bytes, count: ~p, time: ~p ms", [DataLen, N, Diff / 1000]),
-      msgbus_rpc_proxy:stop_client(ClientPid),
-      msgbus_rpc_proxy:stop_server(ServerPid)
+      msgbus_rpc_proxy:stop_client(ClientSock),
+      msgbus_rpc_proxy:stop_server(ServerSock)
     end}.
