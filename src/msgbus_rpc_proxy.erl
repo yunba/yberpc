@@ -208,7 +208,7 @@ handle_info({nnrep, Sock, Data}, #state{servers = Servers} = State) ->
   case lists:keyfind(Sock, 1, Servers) of
     false ->
       {noreply, State};
-    {Sock, Handler} ->
+    {_Sock, Handler} ->
       Handler ! {rpc_proxy_req, {Sock, Data}},
       send_data(Sock, <<0>>),
       {noreply, State}
@@ -219,7 +219,7 @@ handle_info({nnreq, Sock, Data}, #state{clients = Clients} = State) ->
   case lists:keyfind(Sock, 1, Clients) of
     false ->
       {noreply, State};
-    {Sock, Handler} ->
+    {_Sock, Handler} ->
       Handler ! {rpc_proxy_rep, {Sock, Data}},
       {noreply, State}
   end;
