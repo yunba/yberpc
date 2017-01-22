@@ -183,6 +183,7 @@ handle_call(_Request, _From, State) ->
 handle_cast({rpc, Sock, ReqData}, State) ->
   ?LOG_DBG("rpc sock: ~p", [Sock]),
   send_data(Sock, ReqData),
+  recv_data(Sock, <<0>>),
   {noreply, State};
 
 handle_cast(_Request, State) ->
@@ -266,4 +267,9 @@ send_data(Sock, ReqData) ->
       ignore;
     Else ->
       ?LOG_ERR("enm:send error: sock: ~p, error: ~p", [Sock, Else])
+  end.
+
+recv_data(Sock, RepData) ->
+  receive
+    {nnreq, Sock, RepData} -> ignore
   end.
