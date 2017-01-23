@@ -42,7 +42,7 @@
 
 -define(SERVER, ?MODULE).
 
--define(REQ_TIMEOUT, 2000).
+-define(RPC_TIMEOUT, 500).
 
 -record(state, {
   servers = [],
@@ -71,7 +71,7 @@ start_client(Url, Handler) ->
   gen_server:call(?MODULE, {start_client, Url, Handler}).
 
 rpc(Sock, ReqData) ->
-  gen_server:cast(?MODULE, {rpc, Sock, ReqData}).
+  gen_server:call(?MODULE, {rpc, Sock, ReqData}).
 
 stop_server(Sock) ->
   gen_server:call(?MODULE, {stop_server, Sock}).
@@ -141,6 +141,20 @@ handle_call({start_client, Url, Handler}, _From, #state{clients = Clients} = Sta
       {reply, {error, Else}, State}
   end;
 
+handle_call({rpc, Sock, ReqData}, _From, State) ->
+  ?LOG_DBG("rpc sock: ~p", [Sock]),
+  case send_data(Sock, ReqData) of
+    ok ->
+      case recv_data(Sock, <<0>>) of
+        ok ->
+          {reply, ok, State};
+        Else ->
+          {reply, Else, State}
+      end;
+    Else ->
+      {reply, Else, State}
+  end;
+
 handle_call({stop_client, Sock}, _From, #state{clients = Clients} = State) ->
   ?LOG_DBG("stop_client: ~p", [Sock]),
   case lists:keyfind(Sock, 1, Clients) of
@@ -179,13 +193,6 @@ handle_call(_Request, _From, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-
-handle_cast({rpc, Sock, ReqData}, State) ->
-  ?LOG_DBG("rpc sock: ~p", [Sock]),
-  send_data(Sock, ReqData),
-  recv_data(Sock, <<0>>),
-  {noreply, State};
-
 handle_cast(_Request, State) ->
   {noreply, State}.
 
@@ -264,12 +271,17 @@ code_change(_OldVsn, State, _Extra) ->
 send_data(Sock, ReqData) ->
   case enm:send(Sock, ReqData) of
     ok ->
-      ignore;
+      ok;
     Else ->
-      ?LOG_ERR("enm:send error: sock: ~p, error: ~p", [Sock, Else])
+      ?LOG_ERR("enm:send error: sock: ~p, error: ~p", [Sock, Else]),
+      Else
   end.
 
 recv_data(Sock, RepData) ->
   receive
-    {nnreq, Sock, RepData} -> ignore
+    {nnreq, Sock, RepData} ->
+      ok
+  after ?RPC_TIMEOUT ->
+    ?LOG_ERR("recv_data recv ack timeout: ~p", [Sock]),
+    timeout
   end.
