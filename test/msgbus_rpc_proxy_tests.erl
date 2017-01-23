@@ -19,23 +19,25 @@ init_test() ->
   ets:new(data, [set, public, named_table]).
 
 start_server_test() ->
-  {ok, Sock} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
-  ets:insert(data, {server_sock, Sock}).
+  {ok, Pid} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
+  ets:insert(data, {server_pid, Pid}).
 
 start_client_test() ->
-  {ok, Sock} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
-  ets:insert(data, {client_sock, Sock}).
+  {ok, Pid} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
+  ets:insert(data, {client_pid, Pid}).
 
 rpc_test() ->
-  [{client_sock, ClientSock}] = ets:lookup(data, client_sock),
-  [{server_sock, ServerSock}] = ets:lookup(data, server_sock),
+  [{client_pid, ClientPid}] = ets:lookup(data, client_pid),
+  [{server_pid, ServerPid}] = ets:lookup(data, server_pid),
 
-  Data = <<"test">>,
-  msgbus_rpc_proxy:rpc(ClientSock, Data),
+  ReqData = <<"ReqData">>,
+  RepData = <<"RepData">>,
+  msgbus_rpc_proxy:rpc_req(ClientPid, ReqData),
   receive
-    {rpc_proxy_req, {ServerSock, Data}} ->
+    {rpc_proxy_rep, {ServerPid, ReqData}} ->
+      msgbus_rpc_proxy:rpc_rep(ServerPid, RepData),
       receive
-        {rpc_proxy_rep, {ClientSock, <<0>>}} -> ok
+        {rpc_proxy_req, {ClientPid, RepData}} -> ok
       after
         100 -> ?assert(false)
       end
@@ -44,19 +46,20 @@ rpc_test() ->
   end.
 
 stop_server_test() ->
-  [{server_sock, ServerSock}] = ets:lookup(data, server_sock),
-  ok = msgbus_rpc_proxy:stop_server(ServerSock).
+  [{server_pid, ServerPid}] = ets:lookup(data, server_pid),
+  ok = msgbus_rpc_proxy:stop_server(ServerPid).
 
 stop_client_test() ->
-  [{client_sock, ClientSock}] = ets:lookup(data, client_sock),
-  ok = msgbus_rpc_proxy:stop_client(ClientSock).
+  [{client_pid, ClientPid}] = ets:lookup(data, client_pid),
+  ok = msgbus_rpc_proxy:stop_client(ClientPid).
 
-rpc_one_time(ServerSock, ClientSock, Data) ->
-  msgbus_rpc_proxy:rpc(ClientSock, Data),
+rpc_one_time(ServerPid, ClientPid, ReqData, RepData) ->
+  msgbus_rpc_proxy:rpc_req(ClientPid, ReqData),
   receive
-    {rpc_proxy_req, {ServerSock, Data}} ->
+    {rpc_proxy_rep, {ServerPid, ReqData}} ->
+      msgbus_rpc_proxy:rpc_rep(ServerPid, RepData),
       receive
-        {rpc_proxy_rep, {ClientSock, <<0>>}} -> ok
+        {rpc_proxy_req, {ClientPid, RepData}} -> ok
       after
         100 -> ?assert(false)
       end
@@ -64,11 +67,11 @@ rpc_one_time(ServerSock, ClientSock, Data) ->
     100 -> ?assert(false)
   end.
 
-rpc_times(N, ServerSock, ClientSock, Data) when N > 0 ->
-  rpc_one_time(ServerSock, ClientSock, Data),
-  rpc_times(N - 1, ServerSock, ClientSock, Data);
+rpc_times(N, ServerPid, ClientPid, ReqData, RepData) when N > 0 ->
+  rpc_one_time(ServerPid, ClientPid, ReqData, RepData),
+  rpc_times(N - 1, ServerPid, ClientPid, ReqData, RepData);
 
-rpc_times(N, _ServerSock, _ClientSock, _Data) when N =:= 0 ->
+rpc_times(N, _ServerPid, _ClientPid, _ReqData, _RepData) when N =:= 0 ->
   ok.
 
 build_buffer(Length) when Length > 1 ->
@@ -83,20 +86,20 @@ benchmark_test_() ->
     fun() ->
       ?debugFmt("benchmark_test may take 10 seconds", []),
       N = 100000,
-      DataLen = 1024,
+      DataLen = 16,
 
-      {ok, ServerSock} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
+      {ok, ServerPid} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
       timer:sleep(100),
-      {ok, ClientSock} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
+      {ok, ClientPid} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
       timer:sleep(100),
 
       Data = build_buffer(DataLen),
       Begin = os:timestamp(),
-      rpc_times(N, ServerSock, ClientSock, Data),
+      rpc_times(N, ServerPid, ClientPid, Data, Data),
       End = os:timestamp(),
       Diff = timer:now_diff(End, Begin),
 
       ?debugFmt("data: ~p bytes, count: ~p, time: ~p ms", [DataLen, N, Diff / 1000]),
-      msgbus_rpc_proxy:stop_client(ClientSock),
-      msgbus_rpc_proxy:stop_server(ServerSock)
+      msgbus_rpc_proxy:stop_client(ClientPid),
+      msgbus_rpc_proxy:stop_server(ServerPid)
     end}.

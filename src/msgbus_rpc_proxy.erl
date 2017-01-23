@@ -25,10 +25,11 @@
 -endif.
 
 %% API
--export([start_link/0,
+-export([start_link/1,
   start_server/2,
   start_client/2,
-  rpc/2,
+  rpc_req/2,
+  rpc_rep/2,
   stop_server/1,
   stop_client/1]).
 
@@ -45,8 +46,8 @@
 -define(RPC_TIMEOUT, 500).
 
 -record(state, {
-  servers = [],
-  clients = []
+  sock,
+  handler
 }).
 
 %%%===================================================================
@@ -59,25 +60,28 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link() ->
+-spec(start_link(Args :: term()) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link() ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+start_link(Args) ->
+  gen_server:start_link(?MODULE, [Args], []).
 
 start_server(Url, Handler) ->
-  gen_server:call(?MODULE, {start_server, Url, Handler}).
+  supervisor:start_child(msgbus_rpc_proxy_sup, [{server, Url, Handler}]).
 
 start_client(Url, Handler) ->
-  gen_server:call(?MODULE, {start_client, Url, Handler}).
+  supervisor:start_child(msgbus_rpc_proxy_sup, [{client, Url, Handler}]).
 
-rpc(Sock, ReqData) ->
-  gen_server:call(?MODULE, {rpc, Sock, ReqData}).
+rpc_req(Pid, ReqData) ->
+  gen_server:call(Pid, {rpc_req, ReqData}).
 
-stop_server(Sock) ->
-  gen_server:call(?MODULE, {stop_server, Sock}).
+rpc_rep(Pid, RepData) ->
+  gen_server:call(Pid, {rpc_rep, RepData}).
 
-stop_client(Sock) ->
-  gen_server:call(?MODULE, {stop_client, Sock}).
+stop_server(Pid) ->
+  supervisor:terminate_child(msgbus_rpc_proxy_sup, Pid).
+
+stop_client(Pid) ->
+  supervisor:terminate_child(msgbus_rpc_proxy_sup, Pid).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -97,8 +101,27 @@ stop_client(Sock) ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init([]) ->
-  {ok, #state{}}.
+init([{server, Url, Handler}]) ->
+  ?LOG_DBG("start_server: ~p", [Url]),
+  case enm:rep([{bind, Url}, {nodelay, true}]) of
+    {ok, Sock} ->
+      ?LOG_DBG("server sock: ~p", [Sock]),
+      {ok, #state{sock = Sock, handler = Handler}};
+    Else ->
+      ?LOG_DBG("enm:rep error: ~p", [Else]),
+      {error, Else}
+  end;
+
+init([{client, Url, Handler}]) ->
+  ?LOG_DBG("start_client: ~p", [Url]),
+  case enm:req([{connect, Url}, {nodelay, true}]) of
+    {ok, Sock} ->
+      ?LOG_DBG("client sock: ~p", [Sock]),
+      {ok, #state{sock = Sock, handler = Handler}};
+    Else ->
+      ?LOG_DBG("enm:req: ~p", [Else]),
+      {error, Else}
+  end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -116,68 +139,15 @@ init([]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_call({start_server, Url, Handler}, _From, #state{servers = Servers} = State) ->
-  ?LOG_DBG("start_server: ~p", [Url]),
-  case enm:rep([{bind, Url}, {nodelay, true}]) of
-    {ok, Sock} ->
-      ?LOG_DBG("server sock: ~p", [Sock]),
-      Servers2 = lists:append(Servers, [{Sock, Handler}]),
-      {reply, {ok, Sock}, State#state{servers = Servers2}};
-    Else ->
-      ?LOG_DBG("enm:rep error: ~p", [Else]),
-      {reply, {error, Else}, State}
-  end;
+handle_call({rpc_req, ReqData}, _From, #state{sock = Sock} = State) ->
+  ?LOG_DBG("rpc_req sock: ~p", [Sock]),
+  Result = send_data(Sock, ReqData),
+  {reply, Result, State};
 
-%%  https://github.com/basho/enm/issues/7
-handle_call({start_client, Url, Handler}, _From, #state{clients = Clients} = State) ->
-  ?LOG_DBG("start_client: ~p", [Url]),
-  case enm:req([{connect, Url}, {nodelay, true}]) of
-    {ok, Sock} ->
-      ?LOG_DBG("client sock: ~p", [Sock]),
-      Clients2 = lists:append(Clients, [{Sock, Handler}]),
-      {reply, {ok, Sock}, State#state{clients = Clients2}};
-    Else ->
-      ?LOG_DBG("enm:req: ~p", [Else]),
-      {reply, {error, Else}, State}
-  end;
-
-handle_call({rpc, Sock, ReqData}, _From, State) ->
-  ?LOG_DBG("rpc sock: ~p", [Sock]),
-  case send_data(Sock, ReqData) of
-    ok ->
-      case recv_data(Sock, <<0>>) of
-        ok ->
-          {reply, ok, State};
-        Else ->
-          {reply, Else, State}
-      end;
-    Else ->
-      {reply, Else, State}
-  end;
-
-handle_call({stop_client, Sock}, _From, #state{clients = Clients} = State) ->
-  ?LOG_DBG("stop_client: ~p", [Sock]),
-  case lists:keyfind(Sock, 1, Clients) of
-    false ->
-      {reply, ok, State};
-    Client ->
-      ?LOG_DBG("close: ~p", [Sock]),
-      enm:close(Sock),
-      Clients2 = lists:delete(Client, Clients),
-      {reply, ok, State#state{clients = Clients2}}
-  end;
-
-handle_call({stop_server, Sock}, _From, #state{servers = Servers} = State) ->
-  ?LOG_DBG("stop_server: ~p", [Sock]),
-  case lists:keyfind(Sock, 1, Servers) of
-    false ->
-      {reply, ok, State};
-    Server ->
-      ?LOG_DBG("close: ~p", [Sock]),
-      enm:close(Sock),
-      Servers2 = lists:delete(Server, Servers),
-      {reply, ok, State#state{clients = Servers2}}
-  end;
+handle_call({rpc_rep, RepData}, _From, #state{sock = Sock} = State) ->
+  ?LOG_DBG("rpc_rep sock: ~p", [Sock]),
+  Result = send_data(Sock, RepData),
+  {reply, Result, State};
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
@@ -211,26 +181,15 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_info({nnrep, Sock, Data}, #state{servers = Servers} = State) ->
+handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
   ?LOG_DBG("receive a nnrep: ~p", [Sock]),
-  case lists:keyfind(Sock, 1, Servers) of
-    false ->
-      {noreply, State};
-    {_Sock, Handler} ->
-      Handler ! {rpc_proxy_req, {Sock, Data}},
-      send_data(Sock, <<0>>),
-      {noreply, State}
-  end;
+  Handler ! {rpc_proxy_rep, {self(), Data}},
+  {noreply, State};
 
-handle_info({nnreq, Sock, Data}, #state{clients = Clients} = State) ->
+handle_info({nnreq, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
   ?LOG_DBG("receive a nnreq: ~p", [Sock]),
-  case lists:keyfind(Sock, 1, Clients) of
-    false ->
-      {noreply, State};
-    {_Sock, Handler} ->
-      Handler ! {rpc_proxy_rep, {Sock, Data}},
-      {noreply, State}
-  end;
+  Handler ! {rpc_proxy_req, {self(), Data}},
+  {noreply, State};
 
 handle_info(_Info, State) ->
   {noreply, State}.
@@ -248,7 +207,9 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
-terminate(_Reason, _State) ->
+terminate(_Reason, #state{sock = Sock} = _State) ->
+  ?LOG_DBG("close: ~p", [Sock]),
+  enm:close(Sock),
   ok.
 
 %%--------------------------------------------------------------------
@@ -275,13 +236,4 @@ send_data(Sock, ReqData) ->
     Else ->
       ?LOG_ERR("enm:send error: sock: ~p, error: ~p", [Sock, Else]),
       Else
-  end.
-
-recv_data(Sock, RepData) ->
-  receive
-    {nnreq, Sock, RepData} ->
-      ok
-  after ?RPC_TIMEOUT ->
-    ?LOG_ERR("recv_data recv ack timeout: ~p", [Sock]),
-    timeout
   end.

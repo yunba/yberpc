@@ -12,9 +12,13 @@ Erlang RPC 库。
 
 启动 RPC 客户端。_Url_ 为连接地址，_Handler_ 为处理收到数据的进程 `PID`，返回值为一个 `PID`。
 
-## rpc(Pid, ReqData)
+## rpc_req(Pid, ReqData)
 
-发起 RPC 调用。_PID_ 为 `start_client` 返回的 `PID`，_ReqData_ 为请求数据。
+请求 RPC 调用。_PID_ 为 `start_client` 返回的 `PID`，_ReqData_ 为请求数据。
+
+## rpc_rep(Pid, RepData)
+
+响应 RPC 调用。_PID_ 为 `start_server` 返回的 `PID`，_RepData_ 为响应数据。
 
 ## stop_server(Pid)
 
