@@ -140,12 +140,12 @@ init([{client, Url, Handler}]) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_call({rpc_req, ReqData}, _From, #state{sock = Sock} = State) ->
-  ?LOG_DBG("rpc_req sock: ~p", [Sock]),
+%%  ?LOG_DBG("rpc_req sock: ~p", [Sock]),
   Result = send_data(Sock, ReqData),
   {reply, Result, State};
 
 handle_call({rpc_rep, RepData}, _From, #state{sock = Sock} = State) ->
-  ?LOG_DBG("rpc_rep sock: ~p", [Sock]),
+%%  ?LOG_DBG("rpc_rep sock: ~p", [Sock]),
   Result = send_data(Sock, RepData),
   {reply, Result, State};
 
