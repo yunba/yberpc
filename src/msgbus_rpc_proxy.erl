@@ -103,6 +103,7 @@ stop_client(Pid) ->
   {stop, Reason :: term()} | ignore).
 init([{server, Url, Handler}]) ->
   ?LOG_DBG("start_server: ~p", [Url]),
+  process_flag(trap_exit, true),
   case enm:rep([{bind, Url}, {nodelay, true}]) of
     {ok, Sock} ->
       ?LOG_DBG("server sock: ~p", [Sock]),
@@ -114,6 +115,7 @@ init([{server, Url, Handler}]) ->
 
 init([{client, Url, Handler}]) ->
   ?LOG_DBG("start_client: ~p", [Url]),
+  process_flag(trap_exit, true),
   case enm:req([{connect, Url}, {nodelay, true}]) of
     {ok, Sock} ->
       ?LOG_DBG("client sock: ~p", [Sock]),
@@ -208,7 +210,7 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_Reason, #state{sock = Sock} = _State) ->
-  ?LOG_DBG("close sock: ~p", [Sock]),
+  ?LOG_DBG("close: ~p", [Sock]),
   enm:close(Sock),
   ok.
 
