@@ -210,7 +210,7 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_Reason, #state{sock = Sock} = _State) ->
-  ?LOG_DBG("close: ~p", [Sock]),
+  ?LOG_DBG("close sock: ~p", [Sock]),
   enm:close(Sock),
   ok.
 
