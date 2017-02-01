@@ -29,5 +29,6 @@ foreground: generate
 erl: compile
 	erl -pa ebin/ -pa deps/*/ebin/ -s msgbus_rpc_proxy
 
-eunit: deps
-	./rebar compile eunit	
+test: generate
+	ERL_AFLAGS="-config ${PWD}/rel/msgbus_rpc_proxy/etc/app.config" ./rebar compile ct suite=msgbus_rpc_proxy skip_deps=true
+
