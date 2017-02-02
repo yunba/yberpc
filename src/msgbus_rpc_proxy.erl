@@ -13,17 +13,6 @@
 
 -compile({parse_transform, lager_transform}).
 
--define(NODEBUG, true).
--include_lib("eunit/include/eunit.hrl").
-
--ifdef(NODEBUG).
--define(LOG_DBG(Fmt, Args), lager:debug(Fmt, Args)).
--define(LOG_ERR(Fmt, Args), lager:error(Fmt, Args)).
--else.
--define(LOG_DBG(Fmt, Args), ?debugFmt(Fmt, Args)).
--define(LOG_ERR(Fmt, Args), ?debugFmt(Fmt, Args)).
--endif.
-
 %% API
 -export([start_link/1,
   start_server/2,
@@ -102,26 +91,26 @@ stop_client(Pid) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([{server, Url, Handler}]) ->
-  ?LOG_DBG("start_server: ~p", [Url]),
+  lager:debug("start_server: ~p", [Url]),
   process_flag(trap_exit, true),
   case enm:rep([{bind, Url}, {nodelay, true}]) of
     {ok, Sock} ->
-      ?LOG_DBG("server sock: ~p", [Sock]),
+      lager:debug("server sock: ~p", [Sock]),
       {ok, #state{sock = Sock, handler = Handler}};
     Else ->
-      ?LOG_DBG("enm:rep error: ~p", [Else]),
+      lager:debug("enm:rep error: ~p", [Else]),
       {error, Else}
   end;
 
 init([{client, Url, Handler}]) ->
-  ?LOG_DBG("start_client: ~p", [Url]),
+  lager:debug("start_client: ~p", [Url]),
   process_flag(trap_exit, true),
   case enm:req([{connect, Url}, {nodelay, true}]) of
     {ok, Sock} ->
-      ?LOG_DBG("client sock: ~p", [Sock]),
+      lager:debug("client sock: ~p", [Sock]),
       {ok, #state{sock = Sock, handler = Handler}};
     Else ->
-      ?LOG_DBG("enm:req: ~p", [Else]),
+      lager:debug("enm:req: ~p", [Else]),
       {error, Else}
   end.
 
@@ -142,12 +131,12 @@ init([{client, Url, Handler}]) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_call({rpc_req, ReqData}, _From, #state{sock = Sock} = State) ->
-%%  ?LOG_DBG("rpc_req sock: ~p", [Sock]),
+%%  lager:debug("rpc_req sock: ~p", [Sock]),
   Result = send_data(Sock, ReqData),
   {reply, Result, State};
 
 handle_call({rpc_rep, RepData}, _From, #state{sock = Sock} = State) ->
-%%  ?LOG_DBG("rpc_rep sock: ~p", [Sock]),
+%%  lager:debug("rpc_rep sock: ~p", [Sock]),
   Result = send_data(Sock, RepData),
   {reply, Result, State};
 
@@ -184,12 +173,12 @@ handle_cast(_Request, State) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
-  ?LOG_DBG("receive a nnrep: ~p", [Sock]),
+  lager:debug("receive a nnrep: ~p", [Sock]),
   Handler ! {rpc_proxy_rep, {self(), Data}},
   {noreply, State};
 
 handle_info({nnreq, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
-  ?LOG_DBG("receive a nnreq: ~p", [Sock]),
+  lager:debug("receive a nnreq: ~p", [Sock]),
   Handler ! {rpc_proxy_req, {self(), Data}},
   {noreply, State};
 
@@ -210,7 +199,7 @@ handle_info(_Info, State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
 terminate(_Reason, #state{sock = Sock} = _State) ->
-  ?LOG_DBG("close sock: ~p", [Sock]),
+  lager:debug("close sock: ~p", [Sock]),
   enm:close(Sock),
   ok.
 
@@ -236,6 +225,6 @@ send_data(Sock, ReqData) ->
     ok ->
       ok;
     Else ->
-      ?LOG_ERR("enm:send error: sock: ~p, error: ~p", [Sock, Else]),
+      lager:error("enm:send error: sock: ~p, error: ~p", [Sock, Else]),
       Else
   end.
