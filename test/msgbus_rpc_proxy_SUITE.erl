@@ -15,8 +15,14 @@
 
 -include("ct.hrl").
 
+-define(URL, "tcp://127.0.0.1:9000").
+
 all() ->
-  [rpc_test, benchmark_test].
+  [
+%%    rpc_test,
+%%    benchmark_test,
+    adapter_test
+  ].
 
 init_per_suite(Config) ->
   ct:pal("init_per_suite"),
@@ -38,8 +44,8 @@ end_per_testcase(_TestCase, Config) ->
 %% Tests
 %% ===================================================================
 rpc_test(_Config) ->
-  {ok, ServerPid} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
-  {ok, ClientPid} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
+  {ok, ServerPid} = msgbus_rpc_proxy:start_server(?URL, self()),
+  {ok, ClientPid} = msgbus_rpc_proxy:start_client(?URL, self()),
 
   ReqData = <<"ReqData">>,
   RepData = <<"RepData">>,
@@ -59,6 +65,27 @@ rpc_test(_Config) ->
   end,
   ok = msgbus_rpc_proxy:stop_client(ClientPid),
   ok = msgbus_rpc_proxy:stop_server(ServerPid).
+
+benchmark_test(_Config) ->
+  N = 100000,
+  DataLen = 64,
+
+  {ok, ServerPid} = msgbus_rpc_proxy:start_server(?URL, self()),
+  {ok, ClientPid} = msgbus_rpc_proxy:start_client(?URL, self()),
+
+  Data = build_buffer(DataLen),
+  Begin = os:timestamp(),
+  rpc_times(N, ServerPid, ClientPid, Data, Data),
+  End = os:timestamp(),
+  Diff = timer:now_diff(End, Begin),
+
+  ct:pal("data: ~p bytes, count: ~p, time: ~p ms", [DataLen, N, Diff / 1000]),
+  ok = msgbus_rpc_proxy:stop_client(ClientPid),
+  ok = msgbus_rpc_proxy:stop_server(ServerPid).
+
+adapter_test(_Config) ->
+  msgbus_rpc_proxy_adapter:start_servers(),
+  msgbus_rpc_proxy_adapter:stop_servers().
 
 rpc_one_time(ServerPid, ClientPid, ReqData, RepData) ->
   msgbus_rpc_proxy:rpc_req(ClientPid, ReqData),
@@ -90,19 +117,3 @@ build_buffer(Length) when Length > 1 ->
 build_buffer(Length) when Length =:= 1 ->
   <<"0">>.
 
-benchmark_test(_Config) ->
-  N = 100000,
-  DataLen = 16,
-
-  {ok, ServerPid} = msgbus_rpc_proxy:start_server("tcp://*:9000", self()),
-  {ok, ClientPid} = msgbus_rpc_proxy:start_client("tcp://localhost:9000", self()),
-
-  Data = build_buffer(DataLen),
-  Begin = os:timestamp(),
-  rpc_times(N, ServerPid, ClientPid, Data, Data),
-  End = os:timestamp(),
-  Diff = timer:now_diff(End, Begin),
-
-  ct:pal("data: ~p bytes, count: ~p, time: ~p ms", [DataLen, N, Diff / 1000]),
-  ok = msgbus_rpc_proxy:stop_client(ClientPid),
-  ok = msgbus_rpc_proxy:stop_server(ServerPid).

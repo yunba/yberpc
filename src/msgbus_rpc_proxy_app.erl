@@ -10,7 +10,8 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    msgbus_rpc_proxy_sup:start_link().
+    msgbus_rpc_proxy_sup:start_link(),
+    msgbus_rpc_proxy_adapter_sup:start_link().
 
 stop(_State) ->
     ok.
