@@ -1,4 +1,4 @@
--module(msgbus_rpc_proxy_app).
+-module(yberpc_app).
 
 -behaviour(application).
 
@@ -10,8 +10,8 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    msgbus_rpc_proxy_sup:start_link(),
-    msgbus_rpc_proxy_adapter_sup:start_link().
+    yberpc_sup:start_link(),
+    yberpc_adapter_sup:start_link().
 
 stop(_State) ->
     ok.

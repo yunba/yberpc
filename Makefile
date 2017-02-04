@@ -12,23 +12,23 @@ clean:
 	./rebar -j8 clean
 
 relclean:
-	rm -rf rel/msgbus_rpc_proxy
+	rm -rf rel/yberpc
 
 generate: compile
 	cd rel && .././rebar -j8 generate
 
 run: generate
-	./rel/msgbus_rpc_proxy/bin/msgbus_rpc_proxy start
+	./rel/yberpc/bin/yberpc start
 
 console: generate
-	./rel/msgbus_rpc_proxy/bin/msgbus_rpc_proxy console
+	./rel/yberpc/bin/yberpc console
 
 foreground: generate
-	./rel/msgbus_rpc_proxy/bin/msgbus_rpc_proxy foreground
+	./rel/yberpc/bin/yberpc foreground
 
 erl: compile
-	erl -pa ebin/ -pa deps/*/ebin/ -s msgbus_rpc_proxy
+	erl -pa ebin/ -pa deps/*/ebin/ -s yberpc
 
 test: generate
-	ERL_AFLAGS="-config ${PWD}/rel/msgbus_rpc_proxy/etc/app.config" ./rebar compile ct suite=msgbus_rpc_proxy skip_deps=true
+	ERL_AFLAGS="-config ${PWD}/rel/yberpc/etc/app.config" ./rebar compile ct suite=yberpc skip_deps=true
 

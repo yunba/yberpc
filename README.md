@@ -1,4 +1,4 @@
-# msgbus_rpc_proxy
+# yberpc
 
 Erlang RPC 库。
 

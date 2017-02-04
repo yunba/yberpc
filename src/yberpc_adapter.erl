@@ -1,12 +1,12 @@
 %%%-------------------------------------------------------------------
 %%% @author shdxiang
-%%% @copyright (C) 2016, <COMPANY>
+%%% @copyright (C) 2017, <COMPANY>
 %%% @doc
 %%%
 %%% @end
-%%% Created : 08. Nov 2016 5:00 PM
+%%% Created : 03. Feb 2017 6:19 PM
 %%%-------------------------------------------------------------------
--module(msgbus_rpc_proxy).
+-module(yberpc_adapter).
 -author("shdxiang").
 
 -behaviour(gen_server).
@@ -14,13 +14,9 @@
 -compile({parse_transform, lager_transform}).
 
 %% API
--export([start_link/1,
-  start_server/2,
-  start_client/2,
-  rpc_req/2,
-  rpc_rep/2,
-  stop_server/1,
-  stop_client/1]).
+-export([start_link/0,
+  start_servers/0,
+  stop_servers/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -32,16 +28,20 @@
 
 -define(SERVER, ?MODULE).
 
--define(RPC_TIMEOUT, 500).
-
 -record(state, {
-  sock,
-  handler
+  servers = []
 }).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
+start_servers() ->
+  lager:debug("start_servers"),
+  gen_server:call(?MODULE, start_servers).
+
+stop_servers() ->
+  lager:debug("stop_servers"),
+  gen_server:call(?MODULE, stop_servers).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -49,28 +49,10 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link(Args :: term()) ->
+-spec(start_link() ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(Args) ->
-  gen_server:start_link(?MODULE, [Args], []).
-
-start_server(Url, Handler) ->
-  supervisor:start_child(msgbus_rpc_proxy_sup, [{server, Url, Handler}]).
-
-start_client(Url, Handler) ->
-  supervisor:start_child(msgbus_rpc_proxy_sup, [{client, Url, Handler}]).
-
-rpc_req(Pid, ReqData) ->
-  gen_server:call(Pid, {rpc_req, ReqData}).
-
-rpc_rep(Pid, RepData) ->
-  gen_server:call(Pid, {rpc_rep, RepData}).
-
-stop_server(Pid) ->
-  supervisor:terminate_child(msgbus_rpc_proxy_sup, Pid).
-
-stop_client(Pid) ->
-  supervisor:terminate_child(msgbus_rpc_proxy_sup, Pid).
+start_link() ->
+  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -90,29 +72,8 @@ stop_client(Pid) ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init([{server, Url, Handler}]) ->
-  lager:debug("start_server: ~p", [Url]),
-  process_flag(trap_exit, true),
-  case enm:rep([{bind, Url}, {nodelay, true}]) of
-    {ok, Sock} ->
-      lager:debug("server sock: ~p", [Sock]),
-      {ok, #state{sock = Sock, handler = Handler}};
-    Else ->
-      lager:debug("enm:rep error: ~p", [Else]),
-      {error, Else}
-  end;
-
-init([{client, Url, Handler}]) ->
-  lager:debug("start_client: ~p", [Url]),
-  process_flag(trap_exit, true),
-  case enm:req([{connect, Url}, {nodelay, true}]) of
-    {ok, Sock} ->
-      lager:debug("client sock: ~p", [Sock]),
-      {ok, #state{sock = Sock, handler = Handler}};
-    Else ->
-      lager:debug("enm:req: ~p", [Else]),
-      {error, Else}
-  end.
+init([]) ->
+  {ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -130,15 +91,13 @@ init([{client, Url, Handler}]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_call({rpc_req, ReqData}, _From, #state{sock = Sock} = State) ->
-%%  lager:debug("rpc_req sock: ~p", [Sock]),
-  Result = send_data(Sock, ReqData),
-  {reply, Result, State};
+handle_call(start_servers, _From, State) ->
+  Servers = do_start_servers(),
+  {reply, ok, State#state{servers = Servers}};
 
-handle_call({rpc_rep, RepData}, _From, #state{sock = Sock} = State) ->
-%%  lager:debug("rpc_rep sock: ~p", [Sock]),
-  Result = send_data(Sock, RepData),
-  {reply, Result, State};
+handle_call(stop_servers, _From, #state{servers = Servers} = State) ->
+  do_stop_servers(Servers),
+  {reply, ok, State#state{servers = []}};
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
@@ -171,17 +130,6 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-
-handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
-  lager:debug("receive a nnrep: ~p", [Sock]),
-  Handler ! {rpc_proxy_rep, {self(), Data}},
-  {noreply, State};
-
-handle_info({nnreq, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
-  lager:debug("receive a nnreq: ~p", [Sock]),
-  Handler ! {rpc_proxy_req, {self(), Data}},
-  {noreply, State};
-
 handle_info(_Info, State) ->
   {noreply, State}.
 
@@ -198,9 +146,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
-terminate(_Reason, #state{sock = Sock} = _State) ->
-  lager:debug("close sock: ~p", [Sock]),
-  enm:close(Sock),
+terminate(_Reason, _State) ->
   ok.
 
 %%--------------------------------------------------------------------
@@ -220,11 +166,20 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-send_data(Sock, ReqData) ->
-  case enm:send(Sock, ReqData) of
-    ok ->
-      ok;
-    Else ->
-      lager:error("enm:send error: sock: ~p, error: ~p", [Sock, Else]),
-      Else
-  end.
+do_start_servers() ->
+  ConfigServers = application:get_env(yberpc, servers, []),
+  lists:map(fun(Server) ->
+    {Url, Handler} = get_server_info(Server),
+    {ok, Pid} = yberpc:start_server(Url, self()),
+    {Pid, Handler} end, ConfigServers).
+
+do_stop_servers(Servers) ->
+  lists:map(fun(Server) ->
+    {Pid, _} = Server,
+    yberpc:stop_server(Pid) end, Servers).
+
+get_server_info(Server) ->
+  {server, Info} = Server,
+  Url = proplists:get_value(url, Info),
+  Handler = proplists:get_value(handler, Info),
+  {Url, Handler}.

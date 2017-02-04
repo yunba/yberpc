@@ -1,6 +1,6 @@
 @setlocal
 
-@set node_name=msgbus_rpc_proxy
+@set node_name=yberpc
 
 @rem Get the absolute path to the parent directory,
 @rem which is assumed to be the node root.

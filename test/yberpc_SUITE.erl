@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 31. Jan 2017 2:01 PM
 %%%-------------------------------------------------------------------
--module(msgbus_rpc_proxy_SUITE).
+-module(yberpc_SUITE).
 -author("shdxiang").
 
 -compile({parse_transform, lager_transform}).
@@ -26,12 +26,12 @@ all() ->
 
 init_per_suite(Config) ->
   ct:pal("init_per_suite"),
-  {ok, _} = application:ensure_all_started(msgbus_rpc_proxy),
+  {ok, _} = application:ensure_all_started(yberpc),
   Config.
 
 end_per_suite(Config) ->
   ct:pal("end_per_suite"),
-  ok = application:stop(msgbus_rpc_proxy),
+  ok = application:stop(yberpc),
   Config.
 
 init_per_testcase(_TestCase, Config) ->
@@ -44,15 +44,15 @@ end_per_testcase(_TestCase, Config) ->
 %% Tests
 %% ===================================================================
 rpc_test(_Config) ->
-  {ok, ServerPid} = msgbus_rpc_proxy:start_server(?URL, self()),
-  {ok, ClientPid} = msgbus_rpc_proxy:start_client(?URL, self()),
+  {ok, ServerPid} = yberpc:start_server(?URL, self()),
+  {ok, ClientPid} = yberpc:start_client(?URL, self()),
 
   ReqData = <<"ReqData">>,
   RepData = <<"RepData">>,
-  msgbus_rpc_proxy:rpc_req(ClientPid, ReqData),
+  yberpc:rpc_req(ClientPid, ReqData),
   receive
     {rpc_proxy_rep, {ServerPid, ReqData}} ->
-      msgbus_rpc_proxy:rpc_rep(ServerPid, RepData),
+      yberpc:rpc_rep(ServerPid, RepData),
       receive
         {rpc_proxy_req, {ClientPid, RepData}} -> ok
       after
@@ -63,15 +63,15 @@ rpc_test(_Config) ->
     100 ->
       ct:fail(unexpected)
   end,
-  ok = msgbus_rpc_proxy:stop_client(ClientPid),
-  ok = msgbus_rpc_proxy:stop_server(ServerPid).
+  ok = yberpc:stop_client(ClientPid),
+  ok = yberpc:stop_server(ServerPid).
 
 benchmark_test(_Config) ->
   N = 100000,
   DataLen = 64,
 
-  {ok, ServerPid} = msgbus_rpc_proxy:start_server(?URL, self()),
-  {ok, ClientPid} = msgbus_rpc_proxy:start_client(?URL, self()),
+  {ok, ServerPid} = yberpc:start_server(?URL, self()),
+  {ok, ClientPid} = yberpc:start_client(?URL, self()),
 
   Data = build_buffer(DataLen),
   Begin = os:timestamp(),
@@ -80,18 +80,18 @@ benchmark_test(_Config) ->
   Diff = timer:now_diff(End, Begin),
 
   ct:pal("data: ~p bytes, count: ~p, time: ~p ms", [DataLen, N, Diff / 1000]),
-  ok = msgbus_rpc_proxy:stop_client(ClientPid),
-  ok = msgbus_rpc_proxy:stop_server(ServerPid).
+  ok = yberpc:stop_client(ClientPid),
+  ok = yberpc:stop_server(ServerPid).
 
 adapter_test(_Config) ->
-  msgbus_rpc_proxy_adapter:start_servers(),
-  msgbus_rpc_proxy_adapter:stop_servers().
+  yberpc_adapter:start_servers(),
+  yberpc_adapter:stop_servers().
 
 rpc_one_time(ServerPid, ClientPid, ReqData, RepData) ->
-  msgbus_rpc_proxy:rpc_req(ClientPid, ReqData),
+  yberpc:rpc_req(ClientPid, ReqData),
   receive
     {rpc_proxy_rep, {ServerPid, ReqData}} ->
-      msgbus_rpc_proxy:rpc_rep(ServerPid, RepData),
+      yberpc:rpc_rep(ServerPid, RepData),
       receive
         {rpc_proxy_req, {ClientPid, RepData}} -> ok
       after

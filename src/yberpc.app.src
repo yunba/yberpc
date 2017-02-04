@@ -1,4 +1,4 @@
-{application, msgbus_rpc_proxy,
+{application, yberpc,
   [
     {description, ""},
     {vsn, "1"},
@@ -10,6 +10,6 @@
       protobuffs,
       enm
     ]},
-    {mod, {msgbus_rpc_proxy_app, []}},
+    {mod, {yberpc_app, []}},
     {env, []}
   ]}.

@@ -1,8 +1,8 @@
 ## Name of the node
--name msgbus_rpc_proxy@127.0.0.1
+-name yberpc@127.0.0.1
 
 ## Cookie for distributed erlang
--setcookie msgbus_rpc_proxy
+-setcookie yberpc
 
 ## Heartbeat management; auto-restarts VM if it dies or becomes unresponsive
 ## (Disabled by default..use with caution!)
