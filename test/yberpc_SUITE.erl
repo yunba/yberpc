@@ -19,8 +19,8 @@
 
 all() ->
   [
-%%    rpc_test,
-%%    benchmark_test,
+    rpc_test,
+    benchmark_test,
     adapter_test
   ].
 
@@ -51,10 +51,10 @@ rpc_test(_Config) ->
   RepData = <<"RepData">>,
   yberpc:rpc_req(ClientPid, ReqData),
   receive
-    {rpc_proxy_rep, {ServerPid, ReqData}} ->
+    {yberpc_notify_rep, {ServerPid, ReqData}} ->
       yberpc:rpc_rep(ServerPid, RepData),
       receive
-        {rpc_proxy_req, {ClientPid, RepData}} -> ok
+        {yberpc_notify_req, {ClientPid, RepData}} -> ok
       after
         100 ->
           ct:fail(unexpected)
@@ -90,10 +90,10 @@ adapter_test(_Config) ->
 rpc_one_time(ServerPid, ClientPid, ReqData, RepData) ->
   yberpc:rpc_req(ClientPid, ReqData),
   receive
-    {rpc_proxy_rep, {ServerPid, ReqData}} ->
+    {yberpc_notify_rep, {ServerPid, ReqData}} ->
       yberpc:rpc_rep(ServerPid, RepData),
       receive
-        {rpc_proxy_req, {ClientPid, RepData}} -> ok
+        {yberpc_notify_req, {ClientPid, RepData}} -> ok
       after
         100 ->
           ct:fail(unexpected)

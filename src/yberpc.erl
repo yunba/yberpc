@@ -174,12 +174,12 @@ handle_cast(_Request, State) ->
 
 handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
   lager:debug("receive a nnrep: ~p", [Sock]),
-  Handler ! {rpc_proxy_rep, {self(), Data}},
+  Handler ! {yberpc_notify_rep, {self(), Data}},
   {noreply, State};
 
 handle_info({nnreq, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
   lager:debug("receive a nnreq: ~p", [Sock]),
-  Handler ! {rpc_proxy_req, {self(), Data}},
+  Handler ! {yberpc_notify_req, {self(), Data}},
   {noreply, State};
 
 handle_info(_Info, State) ->
