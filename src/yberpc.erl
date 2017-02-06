@@ -98,7 +98,7 @@ init([{server, Url, Handler}]) ->
       lager:debug("server sock: ~p", [Sock]),
       {ok, #state{sock = Sock, handler = Handler}};
     Else ->
-      lager:debug("enm:rep error: ~p", [Else]),
+      lager:error("enm:rep error: ~p", [Else]),
       {error, Else}
   end;
 
@@ -110,7 +110,7 @@ init([{client, Url, Handler}]) ->
       lager:debug("client sock: ~p", [Sock]),
       {ok, #state{sock = Sock, handler = Handler}};
     Else ->
-      lager:debug("enm:req: ~p", [Else]),
+      lager:error("enm:req: ~p", [Else]),
       {error, Else}
   end.
 
@@ -174,12 +174,12 @@ handle_cast(_Request, State) ->
 
 handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
   lager:debug("receive a nnrep: ~p", [Sock]),
-  Handler ! {yberpc_notify_rep, {self(), Data}},
+  Handler ! {yberpc_notify_req, {self(), Data}},
   {noreply, State};
 
 handle_info({nnreq, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
   lager:debug("receive a nnreq: ~p", [Sock]),
-  Handler ! {yberpc_notify_req, {self(), Data}},
+  Handler ! {yberpc_notify_rep, {self(), Data}},
   {noreply, State};
 
 handle_info(_Info, State) ->

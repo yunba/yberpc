@@ -16,6 +16,8 @@
 -include("ct.hrl").
 
 -define(URL, "tcp://127.0.0.1:9000").
+-define(KEY, <<"key">>).
+-define(VALUES, [{<<"tcp://127.0.0.1:9000">>, 50}]).
 
 all() ->
   [
@@ -49,12 +51,12 @@ rpc_test(_Config) ->
 
   ReqData = <<"ReqData">>,
   RepData = <<"RepData">>,
-  yberpc:rpc_req(ClientPid, ReqData),
+  ok = yberpc:rpc_req(ClientPid, ReqData),
   receive
-    {yberpc_notify_rep, {ServerPid, ReqData}} ->
+    {yberpc_notify_req, {ServerPid, ReqData}} ->
       yberpc:rpc_rep(ServerPid, RepData),
       receive
-        {yberpc_notify_req, {ClientPid, RepData}} -> ok
+        {yberpc_notify_rep, {ClientPid, RepData}} -> ok
       after
         100 ->
           ct:fail(unexpected)
@@ -84,16 +86,33 @@ benchmark_test(_Config) ->
   ok = yberpc:stop_server(ServerPid).
 
 adapter_test(_Config) ->
-  yberpc_adapter:start_servers(),
-  yberpc_adapter:stop_servers().
+  yberpc_adapter:start_servers(self()),
+
+  yberpc_adapter:set_clients(?KEY, ?VALUES, self()),
+  yberpc_adapter:request(?KEY, <<"654321">>),
+  receive
+    {yberpc_notify_req, {ServerPid, <<"654321">>}} ->
+      yberpc:rpc_rep(ServerPid, <<"123456">>),
+      receive
+        {yberpc_notify_rep, {_ClientPid, <<"123456">>}} ->
+          ok
+      after
+        100 ->
+          ct:fail(unexpected)
+      end
+  after
+    100 ->
+      ct:fail(unexpected)
+  end,
+  ok = yberpc_adapter:stop_servers().
 
 rpc_one_time(ServerPid, ClientPid, ReqData, RepData) ->
-  yberpc:rpc_req(ClientPid, ReqData),
+  ok = yberpc:rpc_req(ClientPid, ReqData),
   receive
-    {yberpc_notify_rep, {ServerPid, ReqData}} ->
+    {yberpc_notify_req, {ServerPid, ReqData}} ->
       yberpc:rpc_rep(ServerPid, RepData),
       receive
-        {yberpc_notify_req, {ClientPid, RepData}} -> ok
+        {yberpc_notify_rep, {ClientPid, RepData}} -> ok
       after
         100 ->
           ct:fail(unexpected)
@@ -117,3 +136,9 @@ build_buffer(Length) when Length > 1 ->
 build_buffer(Length) when Length =:= 1 ->
   <<"0">>.
 
+handle_data(ReqData) ->
+  ct:pal("ReqData: ~p", [ReqData]),
+  List = binary_to_list(ReqData),
+  List2 = lists:reverse(List),
+  RepData = list_to_binary(List2),
+  ct:pal("RepData: ~p", [RepData]).
