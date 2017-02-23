@@ -18,7 +18,8 @@
   start_servers/1,
   stop_servers/0,
   set_clients/3,
-  request/2]).
+  request/2,
+  request_by_id/3]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -52,6 +53,10 @@ set_clients(Key, Values, Handler) ->
 request(Key, Data) ->
   lager:debug("request: ~p", [Key]),
   gen_server:call(?MODULE, {request, {Key, Data}}).
+
+request_by_id(Key, Id, Data) ->
+  lager:debug("request_by_id: ~p ~p", [Key, Id]),
+  gen_server:call(?MODULE, {request_by_id, {Key, Id, Data}}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -116,6 +121,10 @@ handle_call({set_clients, {Key, Values, Handler}}, _From, State) ->
 
 handle_call({request, {Key, Data}}, _From, State) ->
   Result = do_request(Key, Data),
+  {reply, Result, State};
+
+handle_call({request_by_id, {Key, Id, Data}}, _From, State) ->
+  Result = do_request_by_id(Key, Id, Data),
   {reply, Result, State};
 
 handle_call(_Request, _From, State) ->
@@ -203,22 +212,22 @@ do_set_clients(Key, Values, Handler) ->
       [{_, Clients}] ->
         Clients2 =
           lists:filtermap(fun(Client) ->
-            {Location, _, Pid} = Client,
+            {Location, Id, _, Pid} = Client,
             case lists:keyfind(Location, 1, Values) of
               {_, Weight} ->
-                {true, {Location, Weight, Pid}};
+                {true, {Location, Id, Weight, Pid}};
               _ ->
                 yberpc:stop_client(Pid),
                 false
             end end, Clients),
         Clients3 =
           lists:filtermap(fun(Value) ->
-            {Location, Weight} = Value,
+            {Location, Id, Weight} = Value,
             case lists:keyfind(Location, 1, Clients2) of
               false ->
                 case yberpc:start_client(Location, Handler) of
                   {ok, Pid} ->
-                    {true, {Location, Weight, Pid}};
+                    {true, {Location, Id, Weight, Pid}};
                   Else ->
                     lager:error("yberpc:start_client: ~p", [Else]),
                     false
@@ -229,10 +238,10 @@ do_set_clients(Key, Values, Handler) ->
         lists:append(Clients2, Clients3);
       _ ->
         lists:filtermap(fun(Value) ->
-          {Location, Weight} = Value,
+          {Location, Id, Weight} = Value,
           case yberpc:start_client(Location, Handler) of
             {ok, Pid} ->
-              {true, {Location, Weight, Pid}};
+              {true, {Location, Id, Weight, Pid}};
             Else ->
               lager:error("yberpc:start_client: ~p", [Else]),
               false
@@ -244,6 +253,23 @@ do_request(Key, Data) ->
   case ets:lookup(yberpc_adapter_client, Key) of
     [{_, Clients}] ->
       clients_request(Clients, Data);
+    _ ->
+      lager:error("no clients for: ~p", [Key]),
+      {error, no_client}
+  end.
+
+do_request_by_id(Key, Id, Data) ->
+  case ets:lookup(yberpc_adapter_client, Key) of
+    [{_, Clients}] ->
+      Clients2 =
+        lists:filter(fun(Client) ->
+          case Client of
+            {_, Id, _, _} ->
+              true;
+            _ ->
+              false
+          end end, Clients),
+      clients_request(Clients2, Data);
     _ ->
       lager:error("no clients for: ~p", [Key]),
       {error, no_client}
@@ -272,7 +298,7 @@ select_one_client(Clients) ->
   lists:nth(random:uniform(length(Clients)), Clients).
 
 clients_request_one(Client, ReqData) ->
-  {_, _, Pid} = Client,
+  {_, _, _, Pid} = Client,
   case yberpc:rpc_req(Pid, ReqData) of
     ok ->
       ok;

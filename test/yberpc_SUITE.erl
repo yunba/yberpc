@@ -17,7 +17,7 @@
 
 -define(URL, "tcp://127.0.0.1:9000").
 -define(KEY, <<"key">>).
--define(VALUES, [{<<"tcp://127.0.0.1:9000">>, 50}]).
+-define(VALUES, [{<<"tcp://127.0.0.1:9000">>, <<"test_id">>, 50}]).
 
 all() ->
   [
@@ -87,14 +87,28 @@ benchmark_test(_Config) ->
 
 adapter_test(_Config) ->
   yberpc_adapter:start_servers(self()),
-
   yberpc_adapter:set_clients(?KEY, ?VALUES, self()),
   yberpc_adapter:request(?KEY, <<"654321">>),
   receive
     {yberpc_notify_req, {ServerPid, <<"654321">>}} ->
       yberpc:rpc_rep(ServerPid, <<"123456">>),
       receive
-        {yberpc_notify_rep, {_ClientPid, <<"123456">>}} ->
+        {yberpc_notify_rep, {_, <<"123456">>}} ->
+          ok
+      after
+        100 ->
+          ct:fail(unexpected)
+      end
+  after
+    100 ->
+      ct:fail(unexpected)
+  end,
+  yberpc_adapter:request_by_id(?KEY, <<"test_id">>, <<"654321">>),
+  receive
+    {yberpc_notify_req, {ServerPid2, <<"654321">>}} ->
+      yberpc:rpc_rep(ServerPid2, <<"123456">>),
+      receive
+        {yberpc_notify_rep, {_, <<"123456">>}} ->
           ok
       after
         100 ->
