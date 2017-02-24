@@ -206,7 +206,8 @@ do_stop_servers(Servers) ->
     {Pid} = Server,
     yberpc:stop_server(Pid) end, Servers).
 
-do_set_clients(Key, Values, Handler) ->
+do_set_clients(Key, StringValues, Handler) ->
+  {ok, Values} = parse_values(StringValues),
   NewClients =
     case ets:lookup(yberpc_adapter_client, Key) of
       [{_, Clients}] ->
@@ -306,3 +307,13 @@ clients_request_one(Client, ReqData) ->
       lager:error("yberpc:rpc_req: ~p", [Else]),
       Else
   end.
+
+parse_values(StringValues) ->
+  Values = lists:map(fun(Value) ->
+    {Decoded} = jiffy:decode(Value),
+    Location = proplists:get_value(<<"location">>, Decoded),
+    Id = proplists:get_value(<<"id">>, Decoded),
+    Weight = proplists:get_value(<<"weight">>, Decoded),
+    {Location, Id, Weight} end, StringValues),
+  lager:debug("~p", [Values]),
+  {ok, Values}.

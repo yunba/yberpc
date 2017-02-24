@@ -17,7 +17,7 @@
 
 -define(URL, "tcp://127.0.0.1:9000").
 -define(KEY, <<"key">>).
--define(VALUES, [{<<"tcp://127.0.0.1:9000">>, <<"test_id">>, 50}]).
+-define(VALUES, [<<"{\"location\":\"tcp://localhost:9000\",\"id\":\"test_id\",\"weight\":100}">>]).
 
 all() ->
   [
