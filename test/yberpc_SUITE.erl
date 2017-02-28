@@ -23,7 +23,8 @@ all() ->
   [
     rpc_test,
     benchmark_test,
-    adapter_test
+    adapter_test_request,
+    adapter_test_request_by_id
   ].
 
 init_per_suite(Config) ->
@@ -85,40 +86,33 @@ benchmark_test(_Config) ->
   ok = yberpc:stop_client(ClientPid),
   ok = yberpc:stop_server(ServerPid).
 
-adapter_test(_Config) ->
-  yberpc_adapter:start_servers(self()),
-  yberpc_adapter:set_clients(?KEY, ?VALUES, self()),
-  yberpc_adapter:request(?KEY, <<"654321">>),
-  receive
-    {yberpc_notify_req, {ServerPid, <<"654321">>}} ->
-      yberpc:rpc_rep(ServerPid, <<"123456">>),
-      receive
-        {yberpc_notify_rep, {_, <<"123456">>}} ->
-          ok
-      after
-        100 ->
-          ct:fail(unexpected)
-      end
-  after
-    100 ->
-      ct:fail(unexpected)
-  end,
-  yberpc_adapter:request_by_id(?KEY, <<"test_id">>, <<"654321">>),
-  receive
-    {yberpc_notify_req, {ServerPid2, <<"654321">>}} ->
-      yberpc:rpc_rep(ServerPid2, <<"123456">>),
-      receive
-        {yberpc_notify_rep, {_, <<"123456">>}} ->
-          ok
-      after
-        100 ->
-          ct:fail(unexpected)
-      end
-  after
-    100 ->
-      ct:fail(unexpected)
-  end,
-  ok = yberpc_adapter:stop_servers().
+adapter_test_request(_Config) ->
+  spawn(fun() ->
+    yberpc_adapter:start_servers(self()),
+    receive
+      {yberpc_notify_req, {ServerPid, ReqData}} ->
+        RepData = handle_data(ReqData),
+        yberpc:rpc_rep(ServerPid, RepData)
+    end end),
+
+  timer:sleep(200),
+  yberpc_adapter:set_clients(?KEY, ?VALUES),
+  {ok, <<"123456">>} = yberpc_adapter:request(?KEY, <<"654321">>),
+  yberpc_adapter:stop_servers().
+
+adapter_test_request_by_id(_Config) ->
+  spawn(fun() ->
+    yberpc_adapter:start_servers(self()),
+    receive
+      {yberpc_notify_req, {ServerPid, ReqData}} ->
+        RepData = handle_data(ReqData),
+        yberpc:rpc_rep(ServerPid, RepData)
+    end end),
+
+  timer:sleep(200),
+  yberpc_adapter:set_clients(?KEY, ?VALUES),
+  {ok, <<"123456">>} = yberpc_adapter:request_by_id(?KEY, <<"test_id">>, <<"654321">>),
+  yberpc_adapter:stop_servers().
 
 rpc_one_time(ServerPid, ClientPid, ReqData, RepData) ->
   ok = yberpc:rpc_req(ClientPid, ReqData),
@@ -155,4 +149,5 @@ handle_data(ReqData) ->
   List = binary_to_list(ReqData),
   List2 = lists:reverse(List),
   RepData = list_to_binary(List2),
-  ct:pal("RepData: ~p", [RepData]).
+  ct:pal("RepData: ~p", [RepData]),
+  RepData.

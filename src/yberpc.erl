@@ -95,7 +95,7 @@ init([{server, Url, Handler}]) ->
   process_flag(trap_exit, true),
   case enm:rep([{bind, Url}, {nodelay, true}]) of
     {ok, Sock} ->
-      lager:debug("server sock: ~p", [Sock]),
+      lager:debug("server pid: ~p, sock: ~p", [self(), Sock]),
       {ok, #state{sock = Sock, handler = Handler}};
     Else ->
       lager:error("enm:rep error: ~p", [Else]),
@@ -107,7 +107,7 @@ init([{client, Url, Handler}]) ->
   process_flag(trap_exit, true),
   case enm:req([{connect, Url}, {nodelay, true}]) of
     {ok, Sock} ->
-      lager:debug("client sock: ~p", [Sock]),
+      lager:debug("client pid: ~p, sock: ~p", [self(), Sock]),
       {ok, #state{sock = Sock, handler = Handler}};
     Else ->
       lager:error("enm:req: ~p", [Else]),
@@ -131,12 +131,12 @@ init([{client, Url, Handler}]) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_call({rpc_req, ReqData}, _From, #state{sock = Sock} = State) ->
-%%  lager:debug("rpc_req sock: ~p", [Sock]),
+  lager:debug("rpc_req ~p ~p", [self(), Sock]),
   Result = send_data(Sock, ReqData),
   {reply, Result, State};
 
 handle_call({rpc_rep, RepData}, _From, #state{sock = Sock} = State) ->
-%%  lager:debug("rpc_rep sock: ~p", [Sock]),
+  lager:debug("rpc_rep ~p ~p", [self(), Sock]),
   Result = send_data(Sock, RepData),
   {reply, Result, State};
 
@@ -173,12 +173,12 @@ handle_cast(_Request, State) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
-  lager:debug("receive a nnrep: ~p", [Sock]),
+  lager:debug("receive a nnrep: ~p ~p", [self(), Sock]),
   Handler ! {yberpc_notify_req, {self(), Data}},
   {noreply, State};
 
 handle_info({nnreq, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
-  lager:debug("receive a nnreq: ~p", [Sock]),
+  lager:debug("receive a nnreq: ~p ~p", [self(), Sock]),
   Handler ! {yberpc_notify_rep, {self(), Data}},
   {noreply, State};
 
@@ -220,8 +220,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-send_data(Sock, ReqData) ->
-  case enm:send(Sock, ReqData) of
+send_data(Sock, Data) ->
+  case enm:send(Sock, Data) of
     ok ->
       ok;
     Else ->

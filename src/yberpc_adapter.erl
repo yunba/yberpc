@@ -17,7 +17,7 @@
 -export([start_link/0,
   start_servers/1,
   stop_servers/0,
-  set_clients/3,
+  set_clients/2,
   request/2,
   request_by_id/3]).
 
@@ -30,6 +30,7 @@
   code_change/3]).
 
 -define(SERVER, ?MODULE).
+-define(RPC_TIMEOUT, 1000).
 
 -record(state, {
   servers = []
@@ -46,9 +47,9 @@ stop_servers() ->
   lager:debug("stop_servers"),
   gen_server:call(?MODULE, stop_servers).
 
-set_clients(Key, Values, Handler) ->
+set_clients(Key, Values) ->
   lager:debug("set_clients: ~p ~p", [Key, Values]),
-  gen_server:call(?MODULE, {set_clients, {Key, Values, Handler}}).
+  gen_server:call(?MODULE, {set_clients, {Key, Values}}).
 
 request(Key, Data) ->
   lager:debug("request: ~p", [Key]),
@@ -115,8 +116,8 @@ handle_call(stop_servers, _From, #state{servers = Servers} = State) ->
   do_stop_servers(Servers),
   {reply, ok, State#state{servers = []}};
 
-handle_call({set_clients, {Key, Values, Handler}}, _From, State) ->
-  do_set_clients(Key, Values, Handler),
+handle_call({set_clients, {Key, Values}}, _From, State) ->
+  do_set_clients(Key, Values),
   {reply, ok, State};
 
 handle_call({request, {Key, Data}}, _From, State) ->
@@ -206,7 +207,7 @@ do_stop_servers(Servers) ->
     {Pid} = Server,
     yberpc:stop_server(Pid) end, Servers).
 
-do_set_clients(Key, StringValues, Handler) ->
+do_set_clients(Key, StringValues) ->
   {ok, Values} = parse_values(StringValues),
   NewClients =
     case ets:lookup(yberpc_adapter_client, Key) of
@@ -226,7 +227,7 @@ do_set_clients(Key, StringValues, Handler) ->
             {Location, Id, Weight} = Value,
             case lists:keyfind(Location, 1, Clients2) of
               false ->
-                case yberpc:start_client(Location, Handler) of
+                case yberpc:start_client(Location, self()) of
                   {ok, Pid} ->
                     {true, {Location, Id, Weight, Pid}};
                   Else ->
@@ -240,7 +241,7 @@ do_set_clients(Key, StringValues, Handler) ->
       _ ->
         lists:filtermap(fun(Value) ->
           {Location, Id, Weight} = Value,
-          case yberpc:start_client(Location, Handler) of
+          case yberpc:start_client(Location, self()) of
             {ok, Pid} ->
               {true, {Location, Id, Weight, Pid}};
             Else ->
@@ -288,9 +289,10 @@ clients_request([], _Data) ->
 clients_request(Clients, Data) ->
   Client = select_one_client(Clients),
   case clients_request_one(Client, Data) of
-    ok ->
-      ok;
-    _ ->
+    {ok, RepData} ->
+      {ok, RepData};
+    Else ->
+      lager:error("clients_request_one: ~p", [Else]),
       Clients2 = lists:delete(Client, Clients),
       clients_request(Clients2, Data)
   end.
@@ -302,7 +304,7 @@ clients_request_one(Client, ReqData) ->
   {_, _, _, Pid} = Client,
   case yberpc:rpc_req(Pid, ReqData) of
     ok ->
-      ok;
+      wait_reply(Pid);
     Else ->
       lager:error("yberpc:rpc_req: ~p", [Else]),
       Else
@@ -317,3 +319,12 @@ parse_values(StringValues) ->
     {Location, Id, Weight} end, StringValues),
   lager:debug("~p", [Values]),
   {ok, Values}.
+
+wait_reply(Pid) ->
+  receive
+    {yberpc_notify_rep, {Pid, RepData}} ->
+      {ok, RepData}
+  after
+    ?RPC_TIMEOUT ->
+      {error, timeout}
+  end.
