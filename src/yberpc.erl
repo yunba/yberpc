@@ -32,7 +32,7 @@
 
 -define(SERVER, ?MODULE).
 
--define(RPC_TIMEOUT, 500).
+-define(RPC_TIMEOUT, 15000).
 
 -record(state, {
   sock,
