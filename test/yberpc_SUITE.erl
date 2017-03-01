@@ -24,7 +24,8 @@ all() ->
     rpc_test,
     benchmark_test,
     adapter_test_request,
-    adapter_test_request_by_id
+    adapter_test_request_by_id,
+    client_selector
   ].
 
 init_per_suite(Config) ->
@@ -152,9 +153,10 @@ handle_data(ReqData) ->
   ct:pal("RepData: ~p", [RepData]),
   RepData.
 
-client_selector() ->
+client_selector(_) ->
     Client1 = {"localhost:1100", "hello", 100, 10},
     Client2 = {"localhost:999", "hello", 0, 10},
+    Client3 = {"localhost:999", "hello", 20, 10},
     Clients = [Client1, Client2],
     %% one is 100 weith, and 2 is 0 weight, so it must return 1
     Client1 = yberpc_client_selector:select_one(Clients),
@@ -163,4 +165,5 @@ client_selector() ->
     Client2 = yberpc_client_selector:select_one([Client2]),
 
     %% return undefined when empty list is used
-    undefined = yberpc_client_selector:select_one([]).
+    undefined = yberpc_client_selector:select_one([]),
+    ok.

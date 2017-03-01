@@ -11,7 +11,11 @@ select_one(Clients) ->
         fun({_, _, Weight, _}, CurWeight) -> 
             CurWeight + Weight
         end, 0, Clients),
-    RandomWeight = random:uniform(TotalWeight),
+    RandomWeight = 
+        case TotalWeight of
+            0 -> 0;
+            _ -> random:uniform(TotalWeight)
+        end,
     select_one(Clients, 0, RandomWeight).
 
 select_one([], _, _) ->
