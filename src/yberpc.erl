@@ -93,7 +93,7 @@ stop_client(Pid) ->
 init([{server, Url, Handler}]) ->
   lager:debug("start_server: ~p", [Url]),
   process_flag(trap_exit, true),
-  case enm:rep([{bind, Url}, {nodelay, true}]) of
+  case enm:rep([{bind, Url}, {nodelay, false}]) of
     {ok, Sock} ->
       lager:debug("server pid: ~p, sock: ~p", [self(), Sock]),
       {ok, #state{sock = Sock, handler = Handler}};
@@ -105,7 +105,7 @@ init([{server, Url, Handler}]) ->
 init([{client, Url}]) ->
   lager:debug("start_client: ~p", [Url]),
   process_flag(trap_exit, true),
-  case enm:req([{connect, Url}, {nodelay, true}]) of
+  case enm:req([{connect, Url}, {nodelay, false}]) of
     {ok, Sock} ->
       lager:debug("client pid: ~p, sock: ~p", [self(), Sock]),
       {ok, #state{sock = Sock}};
