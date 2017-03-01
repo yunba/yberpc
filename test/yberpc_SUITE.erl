@@ -49,14 +49,14 @@ end_per_testcase(_TestCase, Config) ->
 %% ===================================================================
 rpc_test(_Config) ->
   {ok, ServerPid} = yberpc:start_server(?URL, self()),
-  {ok, ClientPid} = yberpc:start_client(?URL, self()),
+  {ok, ClientPid} = yberpc:start_client(?URL),
 
   ReqData = <<"ReqData">>,
   RepData = <<"RepData">>,
-  ok = yberpc:rpc_req(ClientPid, ReqData),
+  ok = yberpc:request(ClientPid, ReqData, self()),
   receive
     {yberpc_notify_req, {ServerPid, ReqData}} ->
-      yberpc:rpc_rep(ServerPid, RepData),
+      yberpc:reply(ServerPid, RepData),
       receive
         {yberpc_notify_rep, {ClientPid, RepData}} -> ok
       after
@@ -75,7 +75,7 @@ benchmark_test(_Config) ->
   DataLen = 64,
 
   {ok, ServerPid} = yberpc:start_server(?URL, self()),
-  {ok, ClientPid} = yberpc:start_client(?URL, self()),
+  {ok, ClientPid} = yberpc:start_client(?URL),
 
   Data = build_buffer(DataLen),
   Begin = os:timestamp(),
@@ -93,7 +93,7 @@ adapter_test_request(_Config) ->
     receive
       {yberpc_notify_req, {ServerPid, ReqData}} ->
         RepData = handle_data(ReqData),
-        yberpc:rpc_rep(ServerPid, RepData)
+        yberpc:reply(ServerPid, RepData)
     end end),
 
   timer:sleep(200),
@@ -107,7 +107,7 @@ adapter_test_request_by_id(_Config) ->
     receive
       {yberpc_notify_req, {ServerPid, ReqData}} ->
         RepData = handle_data(ReqData),
-        yberpc:rpc_rep(ServerPid, RepData)
+        yberpc:reply(ServerPid, RepData)
     end end),
 
   timer:sleep(200),
@@ -116,10 +116,10 @@ adapter_test_request_by_id(_Config) ->
   yberpc_adapter:stop_servers().
 
 rpc_one_time(ServerPid, ClientPid, ReqData, RepData) ->
-  ok = yberpc:rpc_req(ClientPid, ReqData),
+  ok = yberpc:request(ClientPid, ReqData, self()),
   receive
     {yberpc_notify_req, {ServerPid, ReqData}} ->
-      yberpc:rpc_rep(ServerPid, RepData),
+      yberpc:reply(ServerPid, RepData),
       receive
         {yberpc_notify_rep, {ClientPid, RepData}} -> ok
       after

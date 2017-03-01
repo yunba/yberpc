@@ -16,9 +16,9 @@
 %% API
 -export([start_link/1,
   start_server/2,
-  start_client/2,
-  rpc_req/2,
-  rpc_rep/2,
+  start_client/1,
+  request/3,
+  reply/2,
   stop_server/1,
   stop_client/1]).
 
@@ -32,7 +32,7 @@
 
 -define(SERVER, ?MODULE).
 
--define(RPC_TIMEOUT, 15000).
+-define(RPC_TIMEOUT, 1000).
 
 -record(state, {
   sock,
@@ -57,14 +57,14 @@ start_link(Args) ->
 start_server(Url, Handler) ->
   supervisor:start_child(yberpc_sup, [{server, Url, Handler}]).
 
-start_client(Url, Handler) ->
-  supervisor:start_child(yberpc_sup, [{client, Url, Handler}]).
+start_client(Url) ->
+  supervisor:start_child(yberpc_sup, [{client, Url}]).
 
-rpc_req(Pid, ReqData) ->
-  gen_server:call(Pid, {rpc_req, ReqData}).
+request(Pid, ReqData, Handler) ->
+  gen_server:call(Pid, {request, ReqData, Handler}).
 
-rpc_rep(Pid, RepData) ->
-  gen_server:call(Pid, {rpc_rep, RepData}).
+reply(Pid, RepData) ->
+  gen_server:call(Pid, {reply, RepData}).
 
 stop_server(Pid) ->
   supervisor:terminate_child(yberpc_sup, Pid).
@@ -102,13 +102,13 @@ init([{server, Url, Handler}]) ->
       {error, Else}
   end;
 
-init([{client, Url, Handler}]) ->
+init([{client, Url}]) ->
   lager:debug("start_client: ~p", [Url]),
   process_flag(trap_exit, true),
   case enm:req([{connect, Url}, {nodelay, true}]) of
     {ok, Sock} ->
       lager:debug("client pid: ~p, sock: ~p", [self(), Sock]),
-      {ok, #state{sock = Sock, handler = Handler}};
+      {ok, #state{sock = Sock}};
     Else ->
       lager:error("enm:req: ~p", [Else]),
       {error, Else}
@@ -130,13 +130,13 @@ init([{client, Url, Handler}]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_call({rpc_req, ReqData}, _From, #state{sock = Sock} = State) ->
-  lager:debug("rpc_req ~p ~p", [self(), Sock]),
+handle_call({request, ReqData, Handler}, _From, #state{sock = Sock} = State) ->
+  lager:debug("request ~p ~p", [self(), Sock]),
   Result = send_data(Sock, ReqData),
-  {reply, Result, State};
+  {reply, Result, State#state{handler = Handler}};
 
-handle_call({rpc_rep, RepData}, _From, #state{sock = Sock} = State) ->
-  lager:debug("rpc_rep ~p ~p", [self(), Sock]),
+handle_call({reply, RepData}, _From, #state{sock = Sock} = State) ->
+  lager:debug("reply ~p ~p", [self(), Sock]),
   Result = send_data(Sock, RepData),
   {reply, Result, State};
 
