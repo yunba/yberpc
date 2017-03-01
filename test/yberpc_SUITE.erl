@@ -48,44 +48,43 @@ end_per_testcase(_TestCase, Config) ->
 %% Tests
 %% ===================================================================
 rpc_test(_Config) ->
-  {ok, ServerPid} = yberpc:start_server(?URL, self()),
-  {ok, ClientPid} = yberpc:start_client(?URL),
+  spawn(fun() ->
+    {ok, ServerPid} = yberpc:start_server(?URL, self()),
+    receive
+      {yberpc_notify_req, {ServerPid, ReqData}} ->
+        RepData = handle_data(ReqData),
+        yberpc:reply(ServerPid, RepData)
+    end,
+    ok = yberpc:stop_server(ServerPid) end),
 
-  ReqData = <<"ReqData">>,
-  RepData = <<"RepData">>,
-  ok = yberpc:request(ClientPid, ReqData, self()),
-  receive
-    {yberpc_notify_req, {ServerPid, ReqData}} ->
-      yberpc:reply(ServerPid, RepData),
-      receive
-        {yberpc_notify_rep, {ClientPid, RepData}} -> ok
-      after
-        100 ->
-          ct:fail(unexpected)
-      end
-  after
-    100 ->
-      ct:fail(unexpected)
-  end,
+  timer:sleep(100),
+  {ok, ClientPid} = yberpc:start_client(?URL),
+  {ok, <<"123456">>} = yberpc:request(ClientPid, <<"654321">>),
   ok = yberpc:stop_client(ClientPid),
-  ok = yberpc:stop_server(ServerPid).
+  timer:sleep(100).
 
 benchmark_test(_Config) ->
-  N = 100000,
+  N = 10000,
   DataLen = 64,
+  Data = build_buffer(DataLen),
 
-  {ok, ServerPid} = yberpc:start_server(?URL, self()),
+  Server = spawn(fun() ->
+    {ok, ServerPid} = yberpc:start_server(?URL, self()),
+    handle_request(Data),
+    ok = yberpc:stop_server(ServerPid) end),
+
+  timer:sleep(100),
   {ok, ClientPid} = yberpc:start_client(?URL),
 
-  Data = build_buffer(DataLen),
   Begin = os:timestamp(),
-  rpc_times(N, ServerPid, ClientPid, Data, Data),
+  rpc_times(N, ClientPid, Data, Data),
   End = os:timestamp(),
   Diff = timer:now_diff(End, Begin),
-
-  ct:pal("data: ~p bytes, count: ~p, time: ~p ms", [DataLen, N, Diff / 1000]),
   ok = yberpc:stop_client(ClientPid),
-  ok = yberpc:stop_server(ServerPid).
+  Server ! server_finish,
+  timer:sleep(100),
+
+  ct:pal("data: ~p bytes, count: ~p, time: ~p ms", [DataLen, N, Diff / 1000]).
 
 adapter_test_request(_Config) ->
   spawn(fun() ->
@@ -94,12 +93,13 @@ adapter_test_request(_Config) ->
       {yberpc_notify_req, {ServerPid, ReqData}} ->
         RepData = handle_data(ReqData),
         yberpc:reply(ServerPid, RepData)
-    end end),
+    end,
+    yberpc_adapter:stop_servers() end),
 
-  timer:sleep(200),
+  timer:sleep(100),
   yberpc_adapter:set_clients(?KEY, ?VALUES),
   {ok, <<"123456">>} = yberpc_adapter:request(?KEY, <<"654321">>),
-  yberpc_adapter:stop_servers().
+  timer:sleep(100).
 
 adapter_test_request_by_id(_Config) ->
   spawn(fun() ->
@@ -108,34 +108,22 @@ adapter_test_request_by_id(_Config) ->
       {yberpc_notify_req, {ServerPid, ReqData}} ->
         RepData = handle_data(ReqData),
         yberpc:reply(ServerPid, RepData)
-    end end),
+    end,
+    yberpc_adapter:stop_servers() end),
 
-  timer:sleep(200),
+  timer:sleep(100),
   yberpc_adapter:set_clients(?KEY, ?VALUES),
   {ok, <<"123456">>} = yberpc_adapter:request_by_id(?KEY, <<"test_id">>, <<"654321">>),
-  yberpc_adapter:stop_servers().
+  timer:sleep(100).
 
-rpc_one_time(ServerPid, ClientPid, ReqData, RepData) ->
-  ok = yberpc:request(ClientPid, ReqData, self()),
-  receive
-    {yberpc_notify_req, {ServerPid, ReqData}} ->
-      yberpc:reply(ServerPid, RepData),
-      receive
-        {yberpc_notify_rep, {ClientPid, RepData}} -> ok
-      after
-        100 ->
-          ct:fail(unexpected)
-      end
-  after
-    100 ->
-      ct:fail(unexpected)
-  end.
+rpc_one_time(ClientPid, ReqData, RepData) ->
+  {ok, RepData} = yberpc:request(ClientPid, ReqData).
 
-rpc_times(N, ServerPid, ClientPid, ReqData, RepData) when N > 0 ->
-  rpc_one_time(ServerPid, ClientPid, ReqData, RepData),
-  rpc_times(N - 1, ServerPid, ClientPid, ReqData, RepData);
+rpc_times(N, ClientPid, ReqData, RepData) when N > 0 ->
+  rpc_one_time(ClientPid, ReqData, RepData),
+  rpc_times(N - 1, ClientPid, ReqData, RepData);
 
-rpc_times(N, _ServerPid, _ClientPid, _ReqData, _RepData) when N =:= 0 ->
+rpc_times(N, _ClientPid, _ReqData, _RepData) when N =:= 0 ->
   ok.
 
 build_buffer(Length) when Length > 1 ->
@@ -154,16 +142,25 @@ handle_data(ReqData) ->
   RepData.
 
 client_selector(_) ->
-    Client1 = {"localhost:1100", "hello", 100, 10},
-    Client2 = {"localhost:999", "hello", 0, 10},
-    Client3 = {"localhost:999", "hello", 20, 10},
-    Clients = [Client1, Client2],
-    %% one is 100 weith, and 2 is 0 weight, so it must return 1
-    Client1 = yberpc_client_selector:select_one(Clients),
+  Client1 = {"localhost:1100", "hello", 100, 10},
+  Client2 = {"localhost:999", "hello", 0, 10},
+  Client3 = {"localhost:999", "hello", 20, 10},
+  Clients = [Client1, Client2],
+  %% one is 100 weith, and 2 is 0 weight, so it must return 1
+  Client1 = yberpc_client_selector:select_one(Clients),
 
-    %% only Client2 is inputed, so return Client2
-    Client2 = yberpc_client_selector:select_one([Client2]),
+  %% only Client2 is inputed, so return Client2
+  Client2 = yberpc_client_selector:select_one([Client2]),
 
-    %% return undefined when empty list is used
-    undefined = yberpc_client_selector:select_one([]),
-    ok.
+  %% return undefined when empty list is used
+  undefined = yberpc_client_selector:select_one([]),
+  ok.
+
+handle_request(Data) ->
+  receive
+    {yberpc_notify_req, {ServerPid, Data}} ->
+      yberpc:reply(ServerPid, Data),
+      handle_request(Data);
+    server_finish ->
+      ok
+  end.

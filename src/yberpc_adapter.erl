@@ -30,7 +30,6 @@
   code_change/3]).
 
 -define(SERVER, ?MODULE).
--define(RPC_TIMEOUT, 1000).
 
 -record(state, {
   servers = []
@@ -314,13 +313,7 @@ select_one_client(Clients) ->
 
 clients_request_one(Client, ReqData) ->
   {_, _, _, Pid} = Client,
-  case yberpc:request(Pid, ReqData, self()) of
-    ok ->
-      wait_reply(Pid);
-    Else ->
-      lager:error("yberpc:rpc_req: ~p", [Else]),
-      Else
-  end.
+  yberpc:request(Pid, ReqData).
 
 parse_values(StringValues) ->
   Values = lists:map(fun(Value) ->
@@ -331,12 +324,3 @@ parse_values(StringValues) ->
     {Location, Id, Weight} end, StringValues),
   lager:debug("~p", [Values]),
   {ok, Values}.
-
-wait_reply(Pid) ->
-  receive
-    {yberpc_notify_rep, {Pid, RepData}} ->
-      {ok, RepData}
-  after
-    ?RPC_TIMEOUT ->
-      {error, timeout}
-  end.

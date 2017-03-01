@@ -17,7 +17,7 @@
 -export([start_link/1,
   start_server/2,
   start_client/1,
-  request/3,
+  request/2,
   reply/2,
   stop_server/1,
   stop_client/1]).
@@ -60,8 +60,8 @@ start_server(Url, Handler) ->
 start_client(Url) ->
   supervisor:start_child(yberpc_sup, [{client, Url}]).
 
-request(Pid, ReqData, Handler) ->
-  gen_server:call(Pid, {request, ReqData, Handler}).
+request(Pid, ReqData) ->
+  gen_server:call(Pid, {request, ReqData}).
 
 reply(Pid, RepData) ->
   gen_server:call(Pid, {reply, RepData}).
@@ -130,10 +130,22 @@ init([{client, Url}]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_call({request, ReqData, Handler}, _From, #state{sock = Sock} = State) ->
+handle_call({request, ReqData}, _From, #state{sock = Sock} = State) ->
   lager:debug("request ~p ~p", [self(), Sock]),
-  Result = send_data(Sock, ReqData),
-  {reply, Result, State#state{handler = Handler}};
+  case send_data(Sock, ReqData) of
+    ok ->
+      receive
+        {nnreq, Sock, Data} ->
+          {reply, {ok, Data}, State}
+      after
+        ?RPC_TIMEOUT ->
+          lager:error("wait reply timeout"),
+          {reply, {error, timeout}, State}
+      end;
+    Else ->
+      lager:error("send_data ~p", [Else]),
+      {reply, Else, State}
+  end;
 
 handle_call({reply, RepData}, _From, #state{sock = Sock} = State) ->
   lager:debug("reply ~p ~p", [self(), Sock]),
@@ -175,11 +187,6 @@ handle_cast(_Request, State) ->
 handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
   lager:debug("receive a nnrep: ~p ~p", [self(), Sock]),
   Handler ! {yberpc_notify_req, {self(), Data}},
-  {noreply, State};
-
-handle_info({nnreq, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
-  lager:debug("receive a nnreq: ~p ~p", [self(), Sock]),
-  Handler ! {yberpc_notify_rep, {self(), Data}},
   {noreply, State};
 
 handle_info(_Info, State) ->
