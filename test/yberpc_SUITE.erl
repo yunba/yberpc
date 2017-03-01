@@ -151,3 +151,16 @@ handle_data(ReqData) ->
   RepData = list_to_binary(List2),
   ct:pal("RepData: ~p", [RepData]),
   RepData.
+
+client_selector() ->
+    Client1 = {"localhost:1100", "hello", 100, 10},
+    Client2 = {"localhost:999", "hello", 0, 10},
+    Clients = [Client1, Client2],
+    %% one is 100 weith, and 2 is 0 weight, so it must return 1
+    Client1 = yberpc_client_selector:select_one(Clients),
+
+    %% only Client2 is inputed, so return Client2
+    Client2 = yberpc_client_selector:select_one([Client2]),
+
+    %% return undefined when empty list is used
+    undefined = yberpc_client_selector:select_one([]).

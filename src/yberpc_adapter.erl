@@ -285,7 +285,6 @@ get_server_info(Server) ->
 clients_request([], _Data) ->
   lager:error("all clients failed"),
   {error, all_failed};
-
 clients_request(Clients, Data) ->
   Client = select_one_client(Clients),
   case clients_request_one(Client, Data) of
@@ -298,7 +297,7 @@ clients_request(Clients, Data) ->
   end.
 
 select_one_client(Clients) ->
-  lists:nth(random:uniform(length(Clients)), Clients).
+  yberpc_client_selector:select_one(Clients).
 
 clients_request_one(Client, ReqData) ->
   {_, _, _, Pid} = Client,
