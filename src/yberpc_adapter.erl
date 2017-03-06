@@ -218,6 +218,7 @@ do_stop_servers(Servers) ->
     {Pid} = Server,
     yberpc:stop_server(Pid) end, Servers).
 
+%%TODO: add comments, extract
 do_set_clients(Key, StringValues) ->
   {ok, Values} = parse_values(StringValues),
   NewClients =
