@@ -312,6 +312,7 @@ clients_request(Clients, Data) ->
 select_one_client(Clients) ->
   yberpc_client_selector:select_one(Clients).
 
+
 clients_request_one(Client, ReqData) ->
   {_, _, _, Pid} = Client,
   yberpc:request(Pid, ReqData).
