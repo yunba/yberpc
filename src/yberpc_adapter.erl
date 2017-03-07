@@ -241,6 +241,7 @@ do_set_clients(Key, StringValues) ->
               false ->
                 case yberpc:start_client(Location) of
                   {ok, Pid} ->
+                    lager:debug("A new client is started:~p", [Location]),
                     {true, {Location, Id, Weight, Pid}};
                   Else ->
                     lager:error("yberpc:start_client: ~p", [Else]),
@@ -315,7 +316,12 @@ select_one_client(Clients) ->
 
 clients_request_one(Client, ReqData) ->
   {_, _, _, Pid} = Client,
-  yberpc:request(Pid, ReqData).
+  case is_process_alive(Pid) of
+      true ->
+          yberpc:request(Pid, ReqData);
+      false ->
+          {error, client_pid_not_alive}
+  end.
 
 parse_values(StringValues) ->
   Values = lists:map(fun(Value) ->
