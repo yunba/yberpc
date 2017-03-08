@@ -23,6 +23,7 @@ all() ->
   [
     rpc_test,
     benchmark_test,
+    benchmark_test_for_connections,
     adapter_test_request,
     adapter_test_request_by_id,
     client_selector,
@@ -86,6 +87,44 @@ benchmark_test(_Config) ->
   timer:sleep(100),
 
   ct:pal("data: ~p bytes, count: ~p, time: ~p ms", [DataLen, N, Diff / 1000]).
+
+benchmark_test_for_connections(_Config) ->
+  N = 10000,
+  DataLen = 64,
+  Data = build_buffer(DataLen),
+
+  Server = spawn(fun() ->
+    {ok, ServerPid} = yberpc:start_server(?URL, self()),
+    handle_request(Data),
+    ok = yberpc:stop_server(ServerPid) end),
+
+  timer:sleep(100),
+  SpinningClients = start_five_hundred_clients(),
+
+  {ok, ClientPid} = yberpc:start_client(?URL),
+
+  Begin = os:timestamp(),
+  rpc_times(N, ClientPid, Data, Data),
+  End = os:timestamp(),
+  Diff = timer:now_diff(End, Begin),
+  ok = yberpc:stop_client(ClientPid),
+
+  lists:foreach(fun(Client) -> ok = yberpc:stop_client(Client) end, SpinningClients),
+
+  Server ! server_finish,
+  timer:sleep(100),
+
+  ct:pal("data: ~p bytes, count: ~p, time: ~p ms", [DataLen, N, Diff / 1000]).
+
+start_five_hundred_clients() ->
+    start_five_hundred_clients(0, []).
+
+start_five_hundred_clients(500, Started) ->
+    Started;
+start_five_hundred_clients(Counter, Started) ->
+  ct:log("counter :~p", [Counter]),
+  {ok, ClientPid} = yberpc:start_client(?URL),
+  start_five_hundred_clients(Counter + 1, [ClientPid | Started]).
 
 adapter_test_request(_Config) ->
   spawn(fun() ->
