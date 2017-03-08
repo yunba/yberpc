@@ -25,7 +25,8 @@ all() ->
     benchmark_test,
     adapter_test_request,
     adapter_test_request_by_id,
-    client_selector
+    client_selector,
+    rpc_parse_value
   ].
 
 init_per_suite(Config) ->
@@ -144,7 +145,6 @@ handle_data(ReqData) ->
 client_selector(_) ->
   Client1 = {"localhost:1100", "hello", 100, 10},
   Client2 = {"localhost:999", "hello", 0, 10},
-  Client3 = {"localhost:999", "hello", 20, 10},
   Clients = [Client1, Client2],
   %% one is 100 weith, and 2 is 0 weight, so it must return 1
   Client1 = yberpc_client_selector:select_one(Clients),
@@ -164,3 +164,11 @@ handle_request(Data) ->
     server_finish ->
       ok
   end.
+
+rpc_parse_value(Config) ->
+    String1 = "{\"location\" : \"192.169.0.1\", \"id\": \"hello\", \"weight\":11}",
+    String2 = "{\"location\" : \"192.169.0.1\",  \"weight\":11}",
+
+    {ok, [{<<"192.169.0.1">>, <<"hello">>, 11}] } = yberpc_adapter:parse_values([ String1 ]),
+    %% id is alternative
+    {ok, [{<<"192.169.0.1">>, undefined, 11}] } = yberpc_adapter:parse_values([ String2 ]).

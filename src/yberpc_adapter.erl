@@ -29,6 +29,9 @@
   terminate/2,
   code_change/3]).
 
+%% export for testing perpose
+-export([parse_values/1]).
+
 -define(SERVER, ?MODULE).
 
 -record(state, {
@@ -230,7 +233,7 @@ do_set_clients(Key, StringValues) ->
           lists:filtermap(fun(Client) ->
             {Location, Id, _, Pid} = Client,
             case lists:keyfind(Location, 1, Values) of
-              {_, Weight} ->
+              {_, _, Weight} ->
                 {true, {Location, Id, Weight, Pid}};
               _ ->
                 yberpc:stop_client(Pid),
@@ -328,6 +331,7 @@ clients_request_one(Client, ReqData) ->
           {error, client_pid_not_alive}
   end.
 
+-spec parse_values(StringValues::list()) -> [{Location::list(), Id::list(), Weight::integer()}].
 parse_values(StringValues) ->
   Values = lists:map(fun(Value) ->
     {Decoded} = jiffy:decode(Value),
