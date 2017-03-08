@@ -56,7 +56,8 @@ request(Key, Data) ->
     {ok, Clients} ->
       clients_request(Clients, Data);
     Else ->
-      lager:error("get_clients: ~p", [Else]),
+      %% TODO: when all elogics and emqtts are moved to rpc, you should turn this back to lager:error
+      lager:debug("get_clients failed: ~p", [Else]),
       Else
   end.
 
@@ -66,7 +67,8 @@ request_by_id(Key, Id, Data) ->
     {ok, Clients} ->
       clients_request(Clients, Data);
     Else ->
-      lager:error("get_clients_by_id: ~p", [Else]),
+      %% TODO: when all elogics and emqtts are moved to rpc, you should turn this back to lager:error
+      lager:debug("get_clients_by_id failed: ~p", [Else]),
       Else
   end.
 
@@ -296,7 +298,8 @@ get_server_info(Server) ->
   {Url}.
 
 clients_request([], _Data) ->
-  lager:error("all clients failed"),
+  %% TODO: when all elogics and emqtts are moved to rpc, you should turn this back to lager:error
+  lager:debug("all clients failed"),
   {error, all_failed};
 
 clients_request(Clients, Data) ->
@@ -305,7 +308,8 @@ clients_request(Clients, Data) ->
     {ok, RepData} ->
       {ok, RepData};
     Else ->
-      lager:error("clients_request_one: ~p", [Else]),
+      %% TODO: when all elogics and emqtts are moved to rpc, you should turn this back to lager:error
+      lager:debug("clients_request_one: ~p", [Else]),
       Clients2 = lists:delete(Client, Clients),
       clients_request(Clients2, Data)
   end.
