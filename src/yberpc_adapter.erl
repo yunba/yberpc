@@ -288,7 +288,8 @@ do_get_clients_by_id(Key, Id) ->
           end end, Clients),
       {ok, Clients2};
     _ ->
-      lager:error("no clients for: ~p", [Key]),
+      %% TODO: when all elogics and emqtts are moved to rpc, you should turn this back to lager:error
+      lager:debug("no clients for: ~p", [Key]),
       {error, no_client}
   end.
 
