@@ -27,6 +27,7 @@ all() ->
     adapter_test_request,
     adapter_test_request_by_id,
     client_selector,
+    one_process_stop_when_another_process_is_sending,
     rpc_parse_value
   ].
 
@@ -64,6 +65,38 @@ rpc_test(_Config) ->
   {ok, <<"123456">>} = yberpc:request(ClientPid, <<"654321">>),
   ok = yberpc:stop_client(ClientPid),
   timer:sleep(100).
+
+one_process_stop_when_another_process_is_sending(_config) ->
+  N = 10000,
+  DataLen = 64,
+  Data = build_buffer(DataLen),
+
+  Server = spawn(fun() ->
+    {ok, ServerPid} = yberpc:start_server(?URL, self()),
+    handle_request(Data),
+    ok = yberpc:stop_server(ServerPid) end),
+
+  {ok, ClientPid} = yberpc:start_client(?URL),
+  {ok, Client2Pid} = yberpc:start_client(?URL),
+  Client = spawn(fun() ->
+      try
+          rpc_times(N, ClientPid, Data, Data)
+      catch
+          _:_ -> ct:pal("catch exception")
+      end
+  end),
+
+  timer:sleep(100),
+  %% stop the client if even if the client is sending
+  ok = yberpc:stop_client(ClientPid),
+
+  {ok, AnotherClientPid} = yberpc:start_client(?URL),
+  rpc_times(N, AnotherClientPid, Data, Data),
+
+  Server ! server_finish,
+  timer:sleep(100),
+
+  ok.
 
 benchmark_test(_Config) ->
   N = 10000,
@@ -119,7 +152,7 @@ benchmark_test_for_connections(_Config) ->
 start_five_hundred_clients() ->
     start_five_hundred_clients(0, []).
 
-start_five_hundred_clients(500, Started) ->
+start_five_hundred_clients(200, Started) ->
     Started;
 start_five_hundred_clients(Counter, Started) ->
   ct:log("counter :~p", [Counter]),
@@ -204,10 +237,11 @@ handle_request(Data) ->
       ok
   end.
 
-rpc_parse_value(Config) ->
+rpc_parse_value(_Config) ->
     String1 = "{\"location\" : \"192.169.0.1\", \"id\": \"hello\", \"weight\":11}",
     String2 = "{\"location\" : \"192.169.0.1\",  \"weight\":11}",
 
     {ok, [{<<"192.169.0.1">>, <<"hello">>, 11}] } = yberpc_adapter:parse_values([ String1 ]),
     %% id is alternative
     {ok, [{<<"192.169.0.1">>, undefined, 11}] } = yberpc_adapter:parse_values([ String2 ]).
+
