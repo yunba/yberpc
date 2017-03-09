@@ -25,6 +25,7 @@ all() ->
     benchmark_test,
     benchmark_test_for_connections,
     adapter_test_request,
+    adapter_test_request_multiple_clients,
     adapter_test_request_by_id,
     client_selector,
     one_process_stop_when_another_process_is_sending,
@@ -50,6 +51,7 @@ end_per_testcase(_TestCase, Config) ->
 %% ===================================================================
 %% Tests
 %% ===================================================================
+
 rpc_test(_Config) ->
   spawn(fun() ->
     {ok, ServerPid} = yberpc:start_server(?URL, self()),
@@ -65,6 +67,44 @@ rpc_test(_Config) ->
   {ok, <<"123456">>} = yberpc:request(ClientPid, <<"654321">>),
   ok = yberpc:stop_client(ClientPid),
   timer:sleep(100).
+
+adapter_test_request_multiple_clients(_config) ->
+  N = 10000,
+  DataLen = 64,
+  Data = build_buffer(DataLen),
+
+  Server = spawn(fun() ->
+    {ok, ServerPid} = yberpc:start_server(?URL, self()),
+    handle_request(Data),
+    ok = yberpc:stop_server(ServerPid) end),
+  {ok, Client1Pid} = yberpc:start_client(?URL),
+  {ok, Client2Pid} = yberpc:start_client(?URL),
+  CurPid = self(),
+  spawn(fun() -> 
+      rpc_times(N, Client1Pid, Data, Data),
+      CurPid ! one, 
+      ok = yberpc:stop_client(Client1Pid) 
+  end),
+  spawn(fun() -> 
+      rpc_times(N, Client2Pid, Data, Data),
+      CurPid ! two,
+      ok = yberpc:stop_client(Client2Pid) 
+  end),
+
+  wait_one_two_done([]),
+  Server ! server_finish,
+  timer:sleep(100),
+
+  ok.
+
+wait_one_two_done([one, two]) ->
+    ok;
+wait_one_two_done([two, one]) ->
+    ok;
+wait_one_two_done(Done) ->
+    receive
+        X -> wait_one_two_done([X|Done])
+    end.
 
 one_process_stop_when_another_process_is_sending(_config) ->
   N = 10000,
