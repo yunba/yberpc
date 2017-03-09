@@ -131,11 +131,12 @@ init([{client, Url}]) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_call({request, ReqData}, _From, #state{sock = Sock} = State) ->
-  lager:debug("request ~p ~p", [self(), Sock]),
+  lager:debug("rpc_dbg: form client, request ~p ~p, data: ~p", [self(), Sock, ReqData]),
   case send_data(Sock, ReqData) of
     ok ->
       receive
         {nnreq, Sock, Data} ->
+              lager:debug("rpc_dbg: form client, request ~p ~p, data: ~p is responsed :~p", [self(), Sock, ReqData, Data]),
           {reply, {ok, Data}, State}
       after
         ?RPC_TIMEOUT ->
@@ -148,8 +149,14 @@ handle_call({request, ReqData}, _From, #state{sock = Sock} = State) ->
   end;
 
 handle_call({reply, RepData}, _From, #state{sock = Sock} = State) ->
-  lager:debug("reply ~p ~p", [self(), Sock]),
+  lager:debug("rpc_dbg: from server, now reply ~p ~p, data: ~p", [self(), Sock, RepData]),
   Result = send_data(Sock, RepData),
+  case Result of
+      ok ->
+          lager:debug("rpc_dbg: from server, now reply ~p ~p, data: ~p, result is:~p", [self(), Sock, RepData, Result]);
+      ELSE ->
+          lager:debug("rpc_dbg: from server side, rpc reply fail ~p, return result is ~p", [RepData, Result])
+  end,
   {reply, Result, State};
 
 handle_call(_Request, _From, State) ->
@@ -205,8 +212,8 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
-terminate(_Reason, #state{sock = Sock} = _State) ->
-  lager:debug("close sock: ~p", [Sock]),
+terminate(Reason, #state{sock = Sock} = State) ->
+  lager:debug("rpc_dbg: close sock: ~p for reason:~p, and the whole state is : ~p", [Sock, Reason, State]),
   enm:close(Sock),
   ok.
 
