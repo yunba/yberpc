@@ -137,7 +137,7 @@ handle_call({request, ReqData}, _From, #state{sock = Sock} = State) ->
   case send_data(Sock, ReqData) of
     ok ->
       %% when send data is ok, return ok directly
-      {reply, {ok, <<"ok">>}, State}
+      {reply, {ok, <<"ok">>}, State};
     Else ->
       lager:error("send_data ~p", [Else]),
       {reply, Else, State}
