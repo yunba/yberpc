@@ -96,6 +96,8 @@ init([{server, Url, Handler}]) ->
   case enm:rep([{bind, Url}, {nodelay, true}]) of
     {ok, Sock} ->
       lager:debug("server pid: ~p, sock: ~p", [self(), Sock]),
+      lager:debug("rpc_dbg: link it to self"),
+      link(Sock),
       {ok, #state{sock = Sock, handler = Handler}};
     Else ->
       lager:error("enm:rep error: ~p", [Else]),
@@ -196,7 +198,12 @@ handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State)
   Handler ! {yberpc_notify_req, {self(), Data}},
   {noreply, State};
 
-handle_info(_Info, State) ->
+handle_info({'EXIT',Socket, Reason}, State) ->
+  lager:debug("rpc_dbg Port driver is stopped, now shutdown, reason is:~p", [Reason]),
+  {stop, Reason, State};
+
+handle_info(Info, State) ->
+  lager:debug("rpc_dbg: receive unknown message:~p", [Info]),
   {noreply, State}.
 
 %%--------------------------------------------------------------------
