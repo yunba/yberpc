@@ -199,6 +199,7 @@ handle_cast(_Request, State) ->
 handle_info({nnrep, Sock, Data}, #state{sock = Sock, handler = Handler} = State) ->
   lager:debug("receive a nnrep: ~p ~p", [self(), Sock]),
   Handler ! {yberpc_notify_req, {self(), Data}},
+  Result = send_data(Sock, <<"ok">>),
   {noreply, State};
 
 handle_info({'EXIT',Socket, Reason}, State) ->
