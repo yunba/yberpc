@@ -70,7 +70,7 @@ rpc_test(_Config) ->
 
 adapter_test_request_multiple_clients(_config) ->
   N = 10000,
-  DataLen = 640,
+  DataLen = 64,
   Data = build_buffer(DataLen),
 
   Server = spawn(fun() ->
@@ -103,9 +103,7 @@ wait_one_two_done([two, one]) ->
     ok;
 wait_one_two_done(Done) ->
     receive
-        X -> 
-            ct:pal("~p is done", [X]),
-            wait_one_two_done([X|Done])
+        X -> wait_one_two_done([X|Done])
     end.
 
 one_process_stop_when_another_process_is_sending(_config) ->
