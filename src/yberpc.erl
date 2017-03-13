@@ -140,26 +140,29 @@ handle_call({request, ReqData}, _From, #state{sock = Sock} = State) ->
         {nnreq, Sock, Data} ->
               lager:debug("rpc_dbg: form client, request ~p ~p, data: ~p is responsed :~p", [self(), Sock, ReqData, Data]),
           {reply, {ok, Data}, State}
-      after
-        ?RPC_TIMEOUT ->
-          lager:error("wait reply timeout"),
-          {reply, {error, timeout}, State}
+          %% let's remove timeout to see what will happen
+%      after
+%        ?RPC_TIMEOUT ->
+%          lager:error("wait reply timeout"),
+%          {reply, {error, timeout}, State}
       end;
     Else ->
       lager:error("send_data ~p", [Else]),
       {reply, Else, State}
   end;
 
+
+%% this is a fake reply api
 handle_call({reply, RepData}, _From, #state{sock = Sock} = State) ->
-  lager:debug("rpc_dbg: from server, now reply ~p ~p, data: ~p", [self(), Sock, RepData]),
-  Result = send_data(Sock, RepData),
-  case Result of
-      ok ->
-          lager:debug("rpc_dbg: from server, now reply ~p ~p, data: ~p, result is:~p", [self(), Sock, RepData, Result]);
-      ELSE ->
-          lager:debug("rpc_dbg: from server side, rpc reply fail ~p, return result is ~p", [RepData, Result])
-  end,
-  {reply, Result, State};
+%  lager:debug("rpc_dbg: from server, now reply ~p ~p, data: ~p", [self(), Sock, RepData]),
+%  Result = send_data(Sock, RepData),
+%  case Result of
+%      ok ->
+%          lager:debug("rpc_dbg: from server, now reply ~p ~p, data: ~p, result is:~p", [self(), Sock, RepData, Result]);
+%      ELSE ->
+%          lager:debug("rpc_dbg: from server side, rpc reply fail ~p, return result is ~p", [RepData, Result])
+%  end,
+  {reply, ok , State};
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
